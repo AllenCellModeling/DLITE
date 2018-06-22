@@ -92,3 +92,6 @@ class cell:
         """Plot the cell on a given axis"""
         [e.plot(ax) for e in self.edges]
         [n.plot(ax) for n in self.nodes]
+
+
+
