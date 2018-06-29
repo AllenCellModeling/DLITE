@@ -4,11 +4,13 @@ import matplotlib.pyplot as plt
 
 
 class node:
-    def __init__(self, loc, cells=[], edges=[]):
+    def __init__(self, loc):
         """loc is the (x,y) location of the node"""
         self.loc = loc
-        self.cells = cells
-        self.edges = edges
+        self._edges = []
+    
+    def __str__(self):
+        return "x:%04i, y:%04i"%tuple(self.loc)
 
     @property
     def x(self):
@@ -17,13 +19,15 @@ class node:
     @property
     def y(self):
         return self.loc[1]
+    
+    @property
+    def edges(self):
+        return self._edges
 
-    def add_cell(self, cell):
-        if cell not in self.cells:
-            self.cells.append(cell)
-
-    def del_cell(self, cell):
-        self.cells.remove(cell)
+    @edges.setter
+    def edges(self, edge):
+        if edge not in self._edges:
+            self._edges.append(edge)
 
     def plot(self, ax):
         ax.plot(self.loc[0], self.loc[1], ".")
@@ -31,10 +35,23 @@ class node:
 class edge:
     def __init__(self, node_a, node_b, radius=None):
         self.node_a = node_a
-        node_a.edges.append(self)
         self.node_b = node_b
-        node_b.edges.append(self)
         self.radius = radius
+        node_a.edges = self
+        node_b.edges = self
+        self._cells = []
+
+    def __str__(self):
+        return "["+"   ->   ".join([str(n) for n in self.nodes])+"]"
+
+    @property
+    def cells(self):
+        return self._cells
+
+    @cells.setter
+    def cells(self, cell):
+        if cell not in self._cells:
+            self._cells.append(cell)
 
     @property
     def straight_length(self):
@@ -74,6 +91,17 @@ class edge:
         else:
             ax.plot([a.x, b.x], [a.y, b.y], **kwargs)
 
+    @property
+    def connected_edges(self):
+        """The edges connected to nodes a and b"""
+        edges_a = [e for e in self.node_a.edges if e is not self]
+        edges_b = [e for e in self.node_b.edges if e is not self]
+        return edges_a, edges_b
+
+    @property
+    def nodes(self):
+        return set((self.node_a, self.node_b))
+
 class cell:
     def __init__(self, nodes, edges):
         """
@@ -84,9 +112,13 @@ class cell:
         edges: list of edges
             Directed edges that compose the cell
         """
-        [node.add_cell(self) for node in nodes]
         self.nodes = nodes
         self.edges = edges
+        for edge in edges:
+            edge.cells = self
+
+    def __str__(self):
+        return "{\n "+" ".join([str(e)+"\n" for e in self.edges])+"}"
 
     def plot(self, ax):
         """Plot the cell on a given axis"""
