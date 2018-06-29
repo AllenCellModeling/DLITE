@@ -102,6 +102,25 @@ class edge:
     def nodes(self):
         return set((self.node_a, self.node_b))
 
+    def _edge_angle(self, other_edge):
+        """What is the angle between this edge and another edge connected
+        at a node?
+        """
+        ## find the common node between the two edges
+        common_node = self.nodes.intersection(other_edge.nodes).pop()
+        this_other_node = self.nodes.difference([common_node]).pop()
+        other_other_node = other_edge.nodes.difference([common_node]).pop()
+        # find edge vectors from common node
+        this_vec = np.subtract(this_other_node.loc, common_node.loc)
+        other_vec = np.subtract(other_other_node.loc, common_node.loc)
+        # find angles of each 
+        this_ang = np.arctan2(this_vec[1], this_vec[0])
+        other_ang = np.arctan2(other_vec[1], other_vec[0]) 
+        #length = lambda v: np.sqrt(np.dot(v,v))
+        #angle = lambda v,w: np.arccos(np.dot(v,w) / (length(v) * length(w)))
+        return other_ang - this_ang
+
+
 class cell:
     def __init__(self, nodes, edges):
         """
