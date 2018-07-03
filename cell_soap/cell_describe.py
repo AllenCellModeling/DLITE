@@ -59,7 +59,19 @@ class edge:
         return np.linalg.norm(np.subtract(self.node_a.loc, self.node_b.loc))
 
     @staticmethod
-    def arc_translation(point1, point2, radius):
+    def _circle_arc_center(point1, point2, radius):
+        """Get the center of a circle from arc endpoints and radius"""
+        x1, y1 = point1
+        x2, y2 = point2
+        x0, y0 = 0.5*np.subtract(point2, point1)+point1 # midpoint
+        a = 0.5*np.linalg.norm(np.subtract(point2, point1)) # dist to midpoint
+        assert a<radius, "Impossible arc asked for, radius too small"
+        b = np.sqrt(radius**2-a**2) # midpoint to circle center
+        xc = x0 + (b*(y0-y1))/a # location of circle center
+        yc = y0 - (b*(x0-x1))/a
+        return xc, yc
+
+    def arc_translation(self, point1, point2, radius):
         """Get arc center and angles from endpoints and radius
 
         We want to be able to plot circular arcs on matplotlib axes.
@@ -71,12 +83,7 @@ class edge:
         """
         x1, y1 = point1
         x2, y2 = point2
-        x0, y0 = 0.5*np.subtract(point2, point1)+point1 # midpoint
-        a = 0.5*np.linalg.norm(np.subtract(point2, point1)) # dist to midpoint
-        assert a<radius, "Impossible arc asked for, radius too small"
-        b = np.sqrt(radius**2-a**2) # midpoint to circle center
-        xc = x0 + (b*(y0-y1))/a # location of circle center
-        yc = y0 - (b*(x0-x1))/a
+        xc, yc = self._circle_arc_center(point1, point2, radius)
         theta1 = np.rad2deg(np.arctan2(y2-yc, x2-xc)) # starting angle
         theta2 = np.rad2deg(np.arctan2(y1-yc, x1-xc)) # stopping angle
         return (xc, yc), theta1, theta2
@@ -103,9 +110,7 @@ class edge:
         return set((self.node_a, self.node_b))
 
     def _edge_angle(self, other_edge):
-        """What is the angle between this edge and another edge connected
-        at a node?
-        """
+        """Straight-line angle between this edge and other"""
         ## find the common node between the two edges
         common_node = self.nodes.intersection(other_edge.nodes).pop()
         this_other_node = self.nodes.difference([common_node]).pop()
@@ -119,6 +124,20 @@ class edge:
         #length = lambda v: np.sqrt(np.dot(v,v))
         #angle = lambda v,w: np.arccos(np.dot(v,w) / (length(v) * length(w)))
         return other_ang - this_ang
+
+    def unit_vectors(self):
+        """What are the unit vectors of the angles the edge makes as it goes 
+        into nodes A and B? Unlike _edge_angle, this accounts for the curvature 
+        of the edge.
+        """
+        a, b = self.node_a.loc, self.node_b.loc
+        center = self._circle_arc_center(a, b, self.radius)
+        perp_a = np.array((a[1]-center[1], -(a[0]-center[0])))
+        perp_a = perp_a/np.linalg.norm(perp_a)
+        perp_b = np.array((-(b[1]-center[1]), b[0]-center[0]))
+        perp_b = perp_b/np.linalg.norm(perp_b)
+        return perp_a, perp_b
+
 
 
 class cell:
