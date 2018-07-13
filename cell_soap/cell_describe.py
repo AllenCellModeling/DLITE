@@ -30,6 +30,12 @@ class node:
         if edge not in self._edges:
             self._edges.append(edge)
 
+    def remove_edge(self, edge):
+
+        ind = self._edges.index(edge) 
+        self._edges.pop(ind)
+        self._tension_vectors.pop(ind)
+
     # @edges.deleter
     # def edges(self, edge): 
     #     print('hi')
@@ -49,19 +55,25 @@ class node:
         ax.plot(self.loc[0], self.loc[1], ".", **kwargs)
 
 class edge:
-    def __init__(self, node_a, node_b, radius=None):
+    def __init__(self, node_a, node_b, radius=None, xc = None, yc = None):
         self.node_a = node_a
         self.node_b = node_b
         self.radius = radius
+        self.xc = xc
+        self.yc = yc 
+
         node_a.edges = self
         node_b.edges = self
+
 
         perp_a, perp_b = self.unit_vectors()
         perp_a = list(perp_a.reshape(1, -1)[0])
         perp_b = list(perp_b.reshape(1, -1)[0])
 
+
         node_a.tension_vectors = perp_a
         node_b.tension_vectors = perp_b
+
 
         self._cells = []
         self._tension = []
@@ -77,6 +89,13 @@ class edge:
     def cells(self, cell):
         if cell not in self._cells:
             self._cells.append(cell)
+
+    def kill_edge(self, node):
+
+        if node == self.node_a:
+            self.node_a.remove_edge(self)
+        if node == self.node_b:
+            self.node_b.remove_edge(self)
 
     @property
     def tension(self):
@@ -115,7 +134,10 @@ class edge:
         """
         x1, y1 = point1
         x2, y2 = point2
-        xc, yc = self._circle_arc_center(point1, point2, radius)
+        if self.xc is None or self.yc is None:
+            xc, yc = self._circle_arc_center(point1, point2, radius)
+        else:
+            xc, yc = self.xc, self.yc
         theta1 = np.rad2deg(np.arctan2(y2-yc, x2-xc)) # starting angle
         theta2 = np.rad2deg(np.arctan2(y1-yc, x1-xc)) # stopping angle
         return (xc, yc), theta1, theta2
@@ -171,7 +193,10 @@ class edge:
         a, b = self.node_a.loc, self.node_b.loc
 
         if self.radius is not None:
-            center = self._circle_arc_center(a, b, self.radius)
+            if self.xc is None or self.yc is None:
+                center = self._circle_arc_center(a, b, self.radius)
+            else:
+                center = self.xc, self.yc
             perp_a = np.array((a[1]-center[1], -(a[0]-center[0])))
             perp_a = perp_a/np.linalg.norm(perp_a)
             perp_b = np.array((-(b[1]-center[1]), b[0]-center[0]))
@@ -224,10 +249,10 @@ class cell:
     def plot(self, ax):
 
 
-        colors = ['b', 'g', 'r', 'c', 'm', 'y', 'k', 'w']
-        color = [x for x in colors if colors.index(x) + 2 == len(self.nodes) ]
-        ''.join(color)
-        ax.facecolor = color
+        # colors = ['b', 'g', 'r', 'c', 'm', 'y', 'k', 'w']
+        # color = [x for x in colors if colors.index(x) + 2 == len(self.nodes) ]
+        # ''.join(color)
+        # ax.facecolor = color
 
         """Plot the cell on a given axis"""
         [e.plot(ax) for e in self.edges]
@@ -332,6 +357,19 @@ class colony:
             edge.tension = tensions[j]
 
         return tensions
+
+    def calculate_pressure(self, tensions):
+        """
+        Calculate pressure using calculated tensions and edge curvatures
+        """
+        # get the list of nodes and edges in the colony
+        nodes = self.nodes
+        edges = self.edges
+        radii = [e.radius for e in edges]
+        pressures = [t/float(r) for (t, r) in zip(tensions, radii)]
+        return pressures
+
+
 
 
 
