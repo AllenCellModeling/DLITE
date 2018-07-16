@@ -1,6 +1,6 @@
 from cell_describe import cell
 def main(edge, angles1, con_edges0, cells, type, num):
-		    # to form a cycle, need the smallest negative from one node and smallest positive angle from other node and vice versa
+		    # to form a cycle, need the largest negative from one node and smallest positive angle from other node and vice versa
 #     try:
     # max negative number from node 0
     # type -- 0 for choosing only the minimum positive angles

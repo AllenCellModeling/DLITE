@@ -2,6 +2,9 @@ import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
 from useful_functions import solution
+from filled_arc import arc_patch
+import numpy.linalg as la
+import matplotlib.patches as mpatches
 
 class node:
     def __init__(self, loc):
@@ -77,6 +80,7 @@ class edge:
 
         self._cells = []
         self._tension = []
+        # self._pressures = []
 
     def __str__(self):
         return "["+"   ->   ".join([str(n) for n in self.nodes])+"]"
@@ -150,6 +154,11 @@ class edge:
             patch = matplotlib.patches.Arc(center, 2*self.radius, 2*self.radius,
                                            0, th1, th2, **kwargs)
             ax.add_patch(patch)
+            # if th1 - th2 > 180:
+            #     th2 = th1 + abs(th1 - th2)
+
+            # arc_patch(center, self.radius, th1, th2, ax=ax, fill=True, **kwargs)
+
         else:
             ax.plot([a.x, b.x], [a.y, b.y], **kwargs)
 
@@ -164,6 +173,16 @@ class edge:
     @property
     def nodes(self):
         return set((self.node_a, self.node_b))
+
+    # @property
+    # def pressures(self):
+    #     return self._pressures
+
+    # @pressures.setter
+    # def pressures(self, two_pressures):
+    #     if two_pressures not in self._pressures:
+    #         self._pressures.append(two_pressures)
+    
 
     def edge_angle(self, other_edge):
         """What is the angle between this edge and another edge connected
@@ -203,26 +222,62 @@ class edge:
             perp_b = perp_b/np.linalg.norm(perp_b)
         else:
             center = 0.5*np.subtract(b, a)+a # midpoint
-            perp_a = -np.array((a[0]-center[0], (a[1]-center[1])))
+            perp_a = np.array((a[0]-center[0], (a[1]-center[1])))
             np.seterr(divide='ignore', invalid='ignore')
             perp_a = perp_a/np.linalg.norm(perp_a)
-            perp_b = -np.array(((b[0]-center[0]), b[1]-center[1]))
+            perp_b = np.array(((b[0]-center[0]), b[1]-center[1]))
             np.seterr(divide='ignore', invalid='ignore')
             perp_b = perp_b/np.linalg.norm(perp_b)
 
         return perp_a, perp_b
 
-     
+    def convex_concave(self, cell1, cell2):
+        """
+        Is the edge convex with respect to cell1 or cell2
+        Check the angle between unit vectors coming into a node
+        """
 
+        perp_a, perp_b = self.unit_vectors()
 
-        # find 
-        #this_ang = np.arctan2(this_vec[1], this_vec[0])
-        #other_ang = np.arctan2(other_vec[1], other_vec[0]) 
-        #length = lambda v: np.sqrt(np.dot(v,v))
-        #angle = lambda v,w: np.arccos(np.dot(v,w) / (length(v) * length(w)))
-        #return np.rad2deg((other_ang - this_ang) % 2 * np.pi)
+        # lets only focus on node_a
 
+        # find the other edges coming into node_a in cell1 and cell2
+        edge1 = [e for e in cell1.edges if e.node_a == self.node_a or e.node_b == self.node_a if e!= self][0]
+        edge2 = [e for e in cell2.edges if e.node_a == self.node_a or e.node_b == self.node_a if e!= self][0]
 
+        # find the unit vectors associated with these edges 
+        edge1_p_a, edge1_p_b = edge1.unit_vectors()
+        edge2_p_a, edge2_p_b = edge2.unit_vectors()
+
+        # choose the correct unit vector in edge1 coming into node_a
+        if edge1.node_a == self.node_a:
+            edge1_v = edge1_p_a
+        else:
+            edge1_v = edge1_p_b
+
+        # choose the correct unit vector in edge2 coming into node_a
+        if edge2.node_a == self.node_a:
+            edge2_v = edge2_p_a
+        else:
+            edge2_v = edge2_p_b
+
+        # Now we have 3 vectors - perp_a, edge1_v and edge2_v on 3 edges all coming into node_a 
+        # to check convexivity, we get the angles between edge1_v and perp_a and between edge2_v and perp_a
+
+        cosang = np.dot(perp_a, edge1_v)
+        sinang = np.cross(perp_a, edge1_v)
+        angle1 = np.rad2deg(np.arctan2(sinang, cosang)) 
+
+        cosang = np.dot(perp_a, edge2_v)
+        sinang = np.cross(perp_a, edge2_v)
+        angle2 = np.rad2deg(np.arctan2(sinang, cosang))
+
+        # the one with the larger angle difference should be the more convex cell
+
+        if abs(angle1) > abs(angle2):
+            return cell1
+        else:
+            return cell2 
 
 class cell:
     def __init__(self, nodes, edges):
@@ -237,6 +292,8 @@ class cell:
         self.nodes = nodes
         self.edges = edges
         self._colony_cell = []
+        self._pressure = []
+
         for edge in edges:
             edge.cells = self
 
@@ -267,14 +324,27 @@ class cell:
         if colony not in self._colony_cell:
             self._colony_cell.append(colony)
 
+    @property
+    def pressure(self):
+        return self._pressure
+
+    @pressure.setter
+    def pressure(self, pres):
+        if pres not in self._pressure:
+            self._pressure.append(pres)
+
+
 class colony:
-    def __init__(self, cells):
+    def __init__(self, cells, edges):
         """
         Parameters
         ________________
         cells: list of cells
+        edges: total list of edges (including those not part of a cell)
         """
         self.cells = cells
+        self.tot_edges = edges 
+
         for cell in cells:
             cell.colony_cell = self
 
@@ -297,7 +367,6 @@ class colony:
         return nodes
 
 
-
     def calculate_tension(self):
         """
         Calculate tension along every edge of the colony
@@ -305,6 +374,7 @@ class colony:
         # get the list of nodes and edges in the colony
         nodes = self.nodes
         edges = self.edges
+        #edges = self.tot_edges
 
         # We want to solve for AX = 0 where A is the coefficient matrix - 
         # A is m * n and X is n * 1 where n is the number of the edges
@@ -322,6 +392,7 @@ class colony:
             indices = np.array([edges.index(x) for x in node.edges if x in edges])
 
             # similarly, only want to consider horizontal vectors that are a part of the colony edge list 
+            # x[0]
             horizontal_vectors = np.array([x[0] for x in node.tension_vectors if node.edges[node.tension_vectors.index(x)] in edges])[np.newaxis]
             
             # add the horizontal vectors to the corresponding indices in temp
@@ -340,6 +411,7 @@ class colony:
         # its almost definitely overdetermined. Plus its homogenous. Headache to solve. So we use SVD
         # transpose the matrix because we want it of the form AX = 0 where A is m * n and X is n * 1 where n is number of edges 
         A = A.T
+        A = np.delete(A, (0), axis=0)
 
         # MAIN SOLVER
         # decompose matrix A as A = U * diag(S) * V
@@ -356,7 +428,7 @@ class colony:
         for j, edge in enumerate(edges):
             edge.tension = tensions[j]
 
-        return tensions
+        return tensions, A, U, S, V
 
     def calculate_pressure(self, tensions):
         """
@@ -365,9 +437,61 @@ class colony:
         # get the list of nodes and edges in the colony
         nodes = self.nodes
         edges = self.edges
-        radii = [e.radius for e in edges]
-        pressures = [t/float(r) for (t, r) in zip(tensions, radii)]
-        return pressures
+
+        A = np.zeros((len(self.cells), 1))
+
+        # of the form tension/radius
+        rhs = []
+
+        for c in self.cells:
+
+            # find cells with a common edge to c
+            common_edge_cells = [cell for cell in self.cells if set(c.edges).intersection(set(cell.edges)) != set() if cell != c]
+            for cell in common_edge_cells:
+                # find common edges between cell and c
+                edges = [e for e in set(cell.edges).intersection(set(c.edges))]
+                indices = []
+                indices.append(self.cells.index(c))
+                indices.append(self.cells.index(cell))
+
+                for e in edges:
+
+                    temp = np.zeros((len(self.cells),1))
+                    # we are finding the pressure difference between 2 cells - (cell, c)
+                    values = np.array([1,-1])
+                    for j, i in enumerate(indices):
+                        # here we assign +1 to cell (c) and -1 to cell (cell)
+                        temp[i] = values[j]
+
+                    A = np.append(A, temp, axis=1)
+
+                    convex_cell = e.convex_concave(c, cell)
+                    if convex_cell == c:
+                        rhs.append(e.tension/ e.radius)
+                    else:
+                        rhs.append(np.negative(e.tension/ e.radius))
+
+                    
+
+        A = A.T
+        A = np.delete(A, (0), axis=0)
+        rhs = np.array(rhs)
+        rhs = rhs[:,0]
+
+        # U, S, V = np.linalg.svd(A)
+        # pressures = V.T[:,-1]
+        #x = la.lstsq(A,rhs, rcond = None)
+        #pressures = x[0]
+
+        pressures = np.dot(np.linalg.pinv(A), rhs)
+
+
+        for j, cell in enumerate(self.cells):
+            cell.pressure = pressures[j]
+
+        pressures = pressures.T
+
+        return pressures, A, rhs
 
 
 
