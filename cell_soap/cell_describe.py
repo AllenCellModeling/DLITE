@@ -218,8 +218,13 @@ class edge:
 
     def convex_concave(self, cell1, cell2):
         """
-        Is the edge convex with respect to cell1 or cell2
-        Check the angle between unit vectors coming into a node
+        Is the edge convex with respect to cell1 or cell2? 
+        ----------
+        Parameters
+        ----------
+        Cell1, Cell2
+
+        Returns which of the 2 cells the edge (self) is curving into
         """
 
         perp_a, perp_b = self.unit_vectors()
@@ -264,16 +269,20 @@ class edge:
         else:
             return cell2 
 
-    def which_cell(self, list_of_edges, ty):
+    def which_cell(self, list_of_edges, ty, max_iter):
         """
-        Find which cells (none, 1 or maximum 2) the current edge is a part of. 
+        Find which cell the current edge is a part of. 
         Algorithm starts from node_a and looks for a cycle that reaches node_b
+
+        Parameters
+        ----------
         List_of_edges - List of all the edges in the colony
         ty -- 0 for choosing only the minimum positive angles
              -- 1 for choosing only the maximum negative angles
 
-        Return -> Cells
-        It returns the smallest cell that it is a part of      
+        Return -
+        ----------
+        Cell -> smallest cell that self is a part of    
         """
 
         cells = []
@@ -296,7 +305,7 @@ class edge:
         # Check that its not 9000
         if angle_node0 != 9000:
             # find edge corresponding to the smallest angle
-            edge1 = [e for e in con_edges0 if edge.edge_angle(e) == angle_node0]
+            edge1 = [e for e in con_edges0 if self.edge_angle(e) == angle_node0]
 
             # Find common and other node
             common_node = edge1[0].nodes.intersection(self.nodes).pop()
@@ -310,7 +319,8 @@ class edge:
                 cell_edges = [self, edge1[0]]
             
                 # Call recursion algorithm
-                cells = self.recursive_cycle_finder(self, edge1, 1, cell_nodes, cell_edges)
+                p = 1
+                cells = self.recursive_cycle_finder([self], edge1, 1, cell_nodes, cell_edges, p, max_iter)
             
             else:
                 # two edge cell
@@ -321,70 +331,81 @@ class edge:
 
 
 
-    def recursive_cycle_finder(self, edge1, edge2, ty, cell_nodes, cell_edges):
+    def recursive_cycle_finder(self, edge1, edge2, ty, cell_nodes, cell_edges, p, max_iter):
         """
         Apply a recursion algorithm until we find a cycle 
-        ______________________________________
+        This function is called by which_cell() 
+        ----------
         Parameters
-        _______________________________________
+        ----------
         edge1 and edge2 - 2 edges connected by a common node
-        ty - 0 or 1 
+        ty - 0 or 1 - decides which direction to search (0 for max negative angle, 1 for min positive)
         cell_nodes - list of current cell nodes
         cell_edges - list of current cell edges
+        p - A count of iterations - only for use in this function
+        max_iter - A specified value of max iterations to be performed after which we stop recursion
         """
+        cells = []
+
         # Set final node
         final_node = self.node_b
 
-        # find the index of common and non common nodes between edge1 and edge2
-        common_node = edge1[0].nodes.intersection(edge2[0].nodes).pop()
-        other_node = edge2[0].nodes.difference([common_node]).pop()
-
-        # = list(edge1[0].nodes).index(other_node) # has error because set reorders things
-        # Check whether node_a or node_b in edge2 corresponds to other_node
-        if edge2[0].node_a == other_node:
-            i = 0
+        if p > max_iter:
+            return []
         else:
-            i = 1
+            # find the index of common and non common nodes between edge1 and edge2
+            common_node = edge1[0].nodes.intersection(edge2[0].nodes).pop()
+            other_node = edge2[0].nodes.difference([common_node]).pop()
 
-        # Find connected edges to edge2 at node_a
-        con_edges0 = edge2.connected_edges[i]
-
-        # Find angles of those edges
-        angles1 = [edge2.edge_angle(e2)  for e2 in con_edges0]
-
-        # Find max negative or min positive angle
-        if ty == 1:
-            angle_node0 = max([n for n in angles1 if n<0], default = 9000)
-        else:
-        # min positive number from node 0
-            angle_node0 = min([n for n in angles1 if n>0], default = 9000)
-
-        # CHeck that its not 9000, if it is, stop recursion - no cells
-        if angle_node0 != 9000:
-            # find edge corresponding to the angle 
-            edge3 = [e for e in con_edges0 if edge2[0].edge_angle(e) == angle_node0]
-
-            # Fine index of common and non-common node between the new edge (edge3) and 
-            # its connected edge (edge2)
-            common_node = edge3[0].nodes.intersection(edge2[0].nodes).pop()
-            other_node = edge3[0].nodes.difference([common_node]).pop()
-
-            # check if non-commomn node is final node
-            if other_node == final_node:
-                # found a cell
-                cells = cell(cell_nodes, cell_edges)
-                return cells
+            # = list(edge1[0].nodes).index(other_node) # has error because set reorders things
+            # Check whether node_a or node_b in edge2 corresponds to other_node
+            if edge2[0].node_a == other_node:
+                i = 0
             else:
-                # Add other_node (the only new node) to the list of cell_nodes
-                cell_nodes.append(other_node)
-                # Add edge3 (the only new edge) to the list of cell_edges
-                cell_edges.append(edge3)
+                i = 1
 
-                # Call the function again with the edge2 and edge3. Repeat until cycle found
-                self.recursive_cycle_finder(edge2, edge3, ty, cell_nodes, cell_edges)
-        else:
-            # No cycle found
-            return False
+            # Find connected edges to edge2 at node_a
+            con_edges0 = edge2[0].connected_edges[i]
+
+            # Find angles of those edges
+            angles1 = [edge2[0].edge_angle(e2)  for e2 in con_edges0]
+
+            # Find max negative or min positive angle
+            if ty == 1:
+                angle_node0 = max([n for n in angles1 if n<0], default = 9000)
+            else:
+            # min positive number from node 0
+                angle_node0 = min([n for n in angles1 if n>0], default = 9000)
+
+            # CHeck that its not 9000, if it is, stop recursion - no cells
+            if angle_node0 != 9000:
+                # find edge corresponding to the angle 
+                edge3 = [e for e in con_edges0 if edge2[0].edge_angle(e) == angle_node0]
+
+                # Fine index of common and non-common node between the new edge (edge3) and 
+                # its connected edge (edge2)
+                common_node = edge3[0].nodes.intersection(edge2[0].nodes).pop()
+                other_node = edge3[0].nodes.difference([common_node]).pop()
+
+                # check if non-commomn node is final node
+                if other_node == final_node:
+                    # found a cell
+                    cell_edges.append(edge3[0])
+                    cells = cell(cell_nodes, cell_edges)
+                    return cells
+                else:
+                    # Add other_node (the only new node) to the list of cell_nodes
+                    p = p + 1
+
+                    cell_nodes.append(other_node)
+                    # Add edge3 (the only new edge) to the list of cell_edges
+                    cell_edges.append(edge3[0])
+
+                    # Call the function again with the edge2 and edge3. Repeat until cycle found
+                    cells = self.recursive_cycle_finder(edge2, edge3, ty, cell_nodes, cell_edges, p , max_iter)
+
+        return cells
+        
 
 
 class cell:
@@ -446,9 +467,10 @@ class colony:
     def __init__(self, cells, edges, nodes):
         """
         Parameters
-        ________________
+        ----------
         cells: list of cells
-        edges: total list of edges (including those not part of a cell)
+        edges: total list of edges (including those not part of cells)
+        nodes: total list of nodes (including those not part of cells)
         """
         self.cells = cells
         self.tot_edges = edges 
@@ -478,7 +500,10 @@ class colony:
     @staticmethod
     def solve_constrained_lsq(A, type, B = None):
         """
-        Solve constrained least square system PX = Q.  
+        Solve constrained least square system PX = Q. 
+
+        Parameters
+        ----------
         A is an M * N matrix comprising M equations and N unknowns 
         B is an N * 1 matrix comprising RHS of the equations
         Type specifies the Lagrange multiplier we use - 0 or 1
@@ -516,7 +541,9 @@ class colony:
         if type == 1:
             # Define Q
             Q = np.zeros((N+1, 1))
-            Q[0:N, 0] = B[0:N]
+            print(Q)
+            print(B)
+            Q[0:N, 0] = B[0:N, 0]
             # Effectively says average is 0 
             Q[N, 0] = 0
 
@@ -596,6 +623,7 @@ class colony:
         ## MAIN SOLVER
         tensions, P = self.solve_constrained_lsq(A, 0, None)
 
+        # Add tensions to edge
         for j, edge in enumerate(edges):
             edge.tension = tensions[j]
 
@@ -613,6 +641,7 @@ class colony:
 
         # of the form tension/radius
         rhs = []
+        #rhs = np.zeros((len(edges), 1))
 
         for c in self.cells:
 
@@ -647,10 +676,8 @@ class colony:
         A = A.T
         A = np.delete(A, (0), axis=0)
         rhs = np.array(rhs)
-        rhs = rhs[:,0]
         
-        
-
+        # OLD SOLVER
         # U, S, V = np.linalg.svd(A)
         # pressures = V.T[:,-1]
         #x = la.lstsq(A,rhs, rcond = None)
