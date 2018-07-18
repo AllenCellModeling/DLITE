@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 from useful_functions import solution
 from filled_arc import arc_patch
 import numpy.linalg as la
+import scipy.linalg as linalg 
 import matplotlib.patches as mpatches
 
 class node:
@@ -13,8 +14,8 @@ class node:
         self._edges = []
         self._tension_vectors = []
     
-    def __str__(self):
-        return "x:%04i, y:%04i"%tuple(self.loc)
+    # def __str__(self):
+    #     return "x:%04i, y:%04i"%tuple(self.loc)
 
     @property
     def x(self):
@@ -38,12 +39,6 @@ class node:
         ind = self._edges.index(edge) 
         self._edges.pop(ind)
         self._tension_vectors.pop(ind)
-
-    # @edges.deleter
-    # def edges(self, edge): 
-    #     print('hi')
-    #     if edge in self._edges:
-    #         self._edges.remove(edge)
 
     @property
     def tension_vectors(self):
@@ -80,10 +75,9 @@ class edge:
 
         self._cells = []
         self._tension = []
-        # self._pressures = []
 
-    def __str__(self):
-        return "["+"   ->   ".join([str(n) for n in self.nodes])+"]"
+    # def __str__(self):
+    #     return "["+"   ->   ".join([str(n) for n in self.nodes])+"]"
 
     @property
     def cells(self):
@@ -173,15 +167,6 @@ class edge:
     @property
     def nodes(self):
         return set((self.node_a, self.node_b))
-
-    # @property
-    # def pressures(self):
-    #     return self._pressures
-
-    # @pressures.setter
-    # def pressures(self, two_pressures):
-    #     if two_pressures not in self._pressures:
-    #         self._pressures.append(two_pressures)
     
 
     def edge_angle(self, other_edge):
@@ -279,6 +264,129 @@ class edge:
         else:
             return cell2 
 
+    def which_cell(self, list_of_edges, ty):
+        """
+        Find which cells (none, 1 or maximum 2) the current edge is a part of. 
+        Algorithm starts from node_a and looks for a cycle that reaches node_b
+        List_of_edges - List of all the edges in the colony
+        ty -- 0 for choosing only the minimum positive angles
+             -- 1 for choosing only the maximum negative angles
+
+        Return -> Cells
+        It returns the smallest cell that it is a part of      
+        """
+
+        cells = []
+        cell_nodes = []
+        cell_edges = []
+
+        # Find connected edges to current edge at node_a
+        con_edges0 = self.connected_edges[0]
+
+        # Find angles of these connected edges
+        angles1 = [self.edge_angle(e2)  for e2 in con_edges0]
+
+        # Find either a max negative angle or min positive angle
+        if ty == 1:
+            angle_node0 = max([n for n in angles1 if n<0], default = 9000)
+        else:
+            # min positive number from node 0
+            angle_node0 = min([n for n in angles1 if n>0], default = 9000)    
+
+        # Check that its not 9000
+        if angle_node0 != 9000:
+            # find edge corresponding to the smallest angle
+            edge1 = [e for e in con_edges0 if edge.edge_angle(e) == angle_node0]
+
+            # Find common and other node
+            common_node = edge1[0].nodes.intersection(self.nodes).pop()
+            other_node = edge1[0].nodes.difference([common_node]).pop()
+
+            # Make sure other node not self.node_b because then its a 2 edge cell
+            if other_node != self.node_b:
+
+                # Make a list of all nodes and edges found so far
+                cell_nodes = [self.node_a, common_node, other_node]
+                cell_edges = [self, edge1[0]]
+            
+                # Call recursion algorithm
+                cells = self.recursive_cycle_finder(self, edge1, 1, cell_nodes, cell_edges)
+            
+            else:
+                # two edge cell
+                cells = cell(list(self.nodes),[edge, edge1])
+
+        return cells
+
+
+
+
+    def recursive_cycle_finder(self, edge1, edge2, ty, cell_nodes, cell_edges):
+        """
+        Apply a recursion algorithm until we find a cycle 
+        ______________________________________
+        Parameters
+        _______________________________________
+        edge1 and edge2 - 2 edges connected by a common node
+        ty - 0 or 1 
+        cell_nodes - list of current cell nodes
+        cell_edges - list of current cell edges
+        """
+        # Set final node
+        final_node = self.node_b
+
+        # find the index of common and non common nodes between edge1 and edge2
+        common_node = edge1[0].nodes.intersection(edge2[0].nodes).pop()
+        other_node = edge2[0].nodes.difference([common_node]).pop()
+
+        # = list(edge1[0].nodes).index(other_node) # has error because set reorders things
+        # Check whether node_a or node_b in edge2 corresponds to other_node
+        if edge2[0].node_a == other_node:
+            i = 0
+        else:
+            i = 1
+
+        # Find connected edges to edge2 at node_a
+        con_edges0 = edge2.connected_edges[i]
+
+        # Find angles of those edges
+        angles1 = [edge2.edge_angle(e2)  for e2 in con_edges0]
+
+        # Find max negative or min positive angle
+        if ty == 1:
+            angle_node0 = max([n for n in angles1 if n<0], default = 9000)
+        else:
+        # min positive number from node 0
+            angle_node0 = min([n for n in angles1 if n>0], default = 9000)
+
+        # CHeck that its not 9000, if it is, stop recursion - no cells
+        if angle_node0 != 9000:
+            # find edge corresponding to the angle 
+            edge3 = [e for e in con_edges0 if edge2[0].edge_angle(e) == angle_node0]
+
+            # Fine index of common and non-common node between the new edge (edge3) and 
+            # its connected edge (edge2)
+            common_node = edge3[0].nodes.intersection(edge2[0].nodes).pop()
+            other_node = edge3[0].nodes.difference([common_node]).pop()
+
+            # check if non-commomn node is final node
+            if other_node == final_node:
+                # found a cell
+                cells = cell(cell_nodes, cell_edges)
+                return cells
+            else:
+                # Add other_node (the only new node) to the list of cell_nodes
+                cell_nodes.append(other_node)
+                # Add edge3 (the only new edge) to the list of cell_edges
+                cell_edges.append(edge3)
+
+                # Call the function again with the edge2 and edge3. Repeat until cycle found
+                self.recursive_cycle_finder(edge2, edge3, ty, cell_nodes, cell_edges)
+        else:
+            # No cycle found
+            return False
+
+
 class cell:
     def __init__(self, nodes, edges):
         """
@@ -335,7 +443,7 @@ class cell:
 
 
 class colony:
-    def __init__(self, cells, edges):
+    def __init__(self, cells, edges, nodes):
         """
         Parameters
         ________________
@@ -344,6 +452,7 @@ class colony:
         """
         self.cells = cells
         self.tot_edges = edges 
+        self.tot_nodes = nodes
 
         for cell in cells:
             cell.colony_cell = self
@@ -366,46 +475,103 @@ class colony:
         [nodes.append(x) for cell in self.cells for edge in cell.edges for x in edge.nodes if x not in nodes]
         return nodes
 
+    @staticmethod
+    def solve_constrained_lsq(A, type, B = None):
+        """
+        Solve constrained least square system PX = Q.  
+        A is an M * N matrix comprising M equations and N unknowns 
+        B is an N * 1 matrix comprising RHS of the equations
+        Type specifies the Lagrange multiplier we use - 0 or 1
+        For type 0 ->
+        Define a matrix P = [[A^TA, C^T],[C, 0]]  - > (N + 1) * (N + 1) matrix
+                        Q = [0..., N]  -> (N + 1) * 1 matrix
+        For type 1 -> 
+        Define a matrix P = [[A^TA, C^T],[C, 0]]  - > (N + 1) * (N + 1) matrix
+                        Q = [B, 0]  -> (N + 1) * 1 matrix
+        """
+        
+        # Get N - number of columns
+        N = np.shape(A)[1]
+
+        # Define matrix of ones
+        P = np.ones((N + 1, N + 1))
+
+        # Get A^TA
+        A1 = np.dot(A.T, A)
+
+        # Plug this into appropriate place in P 
+        P[0:N, 0:N] = A1
+
+        # Set last element in N,N position to 0 
+        P[N, N] = 0
+
+        if type == 0:
+            # Define Q
+            Q = np.zeros((N+1, 1))
+
+            # Set last element to N (number of edges) 
+            # Effectively says average value is 1
+            Q[N, 0] = N
+
+        if type == 1:
+            # Define Q
+            Q = np.zeros((N+1, 1))
+            Q[0:N, 0] = B[0:N]
+            # Effectively says average is 0 
+            Q[N, 0] = 0
+
+
+        # Solve PX = Q
+        R1, R2 = linalg.qr(P) # QR decomposition with qr function
+        y = np.dot(R1.T, Q) # Let y=R1'.Q using matrix multiplication
+        x = linalg.solve(R2, y) # Solve Rx=y
+
+        return x[0:N][:,0], P
+
+
 
     def calculate_tension(self):
         """
         Calculate tension along every edge of the colony
         """
         # get the list of nodes and edges in the colony
-        nodes = self.nodes
-        edges = self.edges
-        #edges = self.tot_edges
+        #nodes = self.nodes
+        nodes = self.tot_nodes
+        #edges = self.edges
+        edges = self.tot_edges
+        # change above to self.nodes and self.edges to plot tensions only in cells found
 
         # We want to solve for AX = 0 where A is the coefficient matrix - 
         # A is m * n and X is n * 1 where n is the number of the edges
         # m can be more than n
         # we initialize A as n * m (n*1 plus appends as we loop) because I couldnt figure out how to append rows
         A = np.zeros((len(edges), 1))
-        y = np.zeros(len(edges))
 
         for node in nodes:
-            # create a temporay list of zeros thats useful for stuff
-            temp = np.zeros((len(edges),1))
+            # only add a force balance if more than 2 edge connected to a node
+            if len(node.edges) > 1:
+                # create a temporay list of zeros thats useful for stuff
+                temp = np.zeros((len(edges),1))
 
-            # node.edges should give the same edge as the edge corresponding to node.tension_vectors since they are added together
-            # only want to add indices of edges that are part of colony edge list
-            indices = np.array([edges.index(x) for x in node.edges if x in edges])
+                # node.edges should give the same edge as the edge corresponding to node.tension_vectors since they are added together
+                # only want to add indices of edges that are part of colony edge list
+                indices = np.array([edges.index(x) for x in node.edges if x in edges])
 
-            # similarly, only want to consider horizontal vectors that are a part of the colony edge list 
-            # x[0]
-            horizontal_vectors = np.array([x[0] for x in node.tension_vectors if node.edges[node.tension_vectors.index(x)] in edges])[np.newaxis]
-            
-            # add the horizontal vectors to the corresponding indices in temp
-            temp[indices] = horizontal_vectors.T
+                # similarly, only want to consider horizontal vectors that are a part of the colony edge list 
+                # x[0]
+                horizontal_vectors = np.array([x[0] for x in node.tension_vectors if node.edges[node.tension_vectors.index(x)] in edges])[np.newaxis]
+                
+                # add the horizontal vectors to the corresponding indices in temp
+                temp[indices] = horizontal_vectors.T
 
-            # append this list to A. This column now has the horizontal force balance information for the node being looped
-            A = np.append(A, temp, axis=1)
+                # append this list to A. This column now has the horizontal force balance information for the node being looped
+                A = np.append(A, temp, axis=1)
 
-            # repeat the process for the vertical force balance
-            temp = np.zeros((len(edges),1))
-            vertical_vectors = np.array([x[1] for x in node.tension_vectors if node.edges[node.tension_vectors.index(x)] in edges])[np.newaxis]
-            temp[indices] = vertical_vectors.T
-            A = np.append(A, temp, axis=1)
+                # repeat the process for the vertical force balance
+                temp = np.zeros((len(edges),1))
+                vertical_vectors = np.array([x[1] for x in node.tension_vectors if node.edges[node.tension_vectors.index(x)] in edges])[np.newaxis]
+                temp[indices] = vertical_vectors.T
+                A = np.append(A, temp, axis=1)
 
         # A is the coefficient matrix that contains all horizontal and vertical force balance information of all nodes.
         # its almost definitely overdetermined. Plus its homogenous. Headache to solve. So we use SVD
@@ -413,22 +579,27 @@ class colony:
         A = A.T
         A = np.delete(A, (0), axis=0)
 
-        # MAIN SOLVER
-        # decompose matrix A as A = U * diag(S) * V
-        # S is list of singular values in decreasing order of magnitude.
-        # If any diagonal element is 0, that means we found a singular value
-        # look up the column in V.T corresponding to that column in S. This is the solution for X.
-        # if no diagonal element is 0, that means there is no solution. BUT, its reasonable to assume
-        # that the value of S of smallest magnitude corresponds to the best fit. 
-        # Thus, for solution we always pick the last column of V.T
+        # # OLD MAIN SOLVER
+        # # decompose matrix A as A = U * diag(S) * V
+        # # S is list of singular values in decreasing order of magnitude.
+        # # If any diagonal element is 0, that means we found a singular value
+        # # look up the column in V.T corresponding to that column in S. This is the solution for X.
+        # # if no diagonal element is 0, that means there is no solution. BUT, its reasonable to assume
+        # # that the value of S of smallest magnitude corresponds to the best fit. 
+        # # Thus, for solution we always pick the last column of V.T
 
-        U, S, V = np.linalg.svd(A)
-        tensions = V.T[:,-1]
+        # U, S, V = np.linalg.svd(A)
+        # tensions = V.T[:,-1]
+
+        # Use Solve_constrained_lsq
+        
+        ## MAIN SOLVER
+        tensions, P = self.solve_constrained_lsq(A, 0, None)
 
         for j, edge in enumerate(edges):
             edge.tension = tensions[j]
 
-        return tensions, A, U, S, V
+        return tensions, P
 
     def calculate_pressure(self, tensions):
         """
@@ -477,21 +648,23 @@ class colony:
         A = np.delete(A, (0), axis=0)
         rhs = np.array(rhs)
         rhs = rhs[:,0]
+        
+        
 
         # U, S, V = np.linalg.svd(A)
         # pressures = V.T[:,-1]
         #x = la.lstsq(A,rhs, rcond = None)
         #pressures = x[0]
 
-        pressures = np.dot(np.linalg.pinv(A), rhs)
+        # pressures = np.dot(np.linalg.pinv(A), rhs)
+
+        pressures, P  = self.solve_constrained_lsq(A, 1, rhs)
 
 
         for j, cell in enumerate(self.cells):
             cell.pressure = pressures[j]
 
-        pressures = pressures.T
-
-        return pressures, A, rhs
+        return pressures, P
 
 
 
