@@ -3,6 +3,7 @@ import matplotlib
 import matplotlib.pyplot as plt
 from useful_functions import solution
 from filled_arc import arc_patch
+from scipy import ndimage, optimize
 import numpy.linalg as la
 import scipy.linalg as linalg 
 import matplotlib.patches as mpatches
@@ -54,6 +55,20 @@ class node:
 
 class edge:
     def __init__(self, node_a, node_b, radius=None, xc = None, yc = None):
+        """
+        Define an edge clockwise between node_a and node_b.
+        -------------
+        Parameters
+        -------------
+        Node_a, Node_b - nodes at the end of the branch 
+        radius - fitted radius of a circular arc
+        -------------
+        Notes ->
+        Calling edge automatically makes the following changes to the node class:
+        (1) Adds this edge to the edge property in node_a and node_b 
+        (2) Calculates tension vectors at node_a and node_b (perp_a, perp_b)
+        and adds these to the tension_vectors property in node_a and node_b
+        """
         self.node_a = node_a
         self.node_b = node_b
         self.radius = radius
@@ -417,6 +432,11 @@ class cell:
             Nodes that make up vertices of the cell
         edges: list of edges
             Directed edges that compose the cell
+        ---------------
+        Notes -> 
+        ---------------
+        Calling cell automatically makes the following changes to the edge class
+        (1) Add this cell to every edge in self.edges
         """
         self.nodes = nodes
         self.edges = edges
@@ -471,6 +491,11 @@ class colony:
         cells: list of cells
         edges: total list of edges (including those not part of cells)
         nodes: total list of nodes (including those not part of cells)
+        ---------------
+        Notes ->
+        ---------------
+        Calling colony automatically makes the following changes to the cell class
+        (1) Adds colony to all cells in self.cells1
         """
         self.cells = cells
         self.tot_edges = edges 
@@ -507,10 +532,10 @@ class colony:
         A is an M * N matrix comprising M equations and N unknowns 
         B is an N * 1 matrix comprising RHS of the equations
         Type specifies the Lagrange multiplier we use - 0 or 1
-        For type 0 ->
+        For type 0 -> (For tension)
         Define a matrix P = [[A^TA, C^T],[C, 0]]  - > (N + 1) * (N + 1) matrix
                         Q = [0..., N]  -> (N + 1) * 1 matrix
-        For type 1 -> 
+        For type 1 -> (For pressure)
         Define a matrix P = [[A^TA, C^T],[C, 0]]  - > (N + 1) * (N + 1) matrix
                         Q = [B, 0]  -> (N + 1) * 1 matrix
         """
@@ -541,9 +566,13 @@ class colony:
         if type == 1:
             # Define Q
             Q = np.zeros((N+1, 1))
-            print(Q)
-            print(B)
-            Q[0:N, 0] = B[0:N, 0]
+            # print(Q)
+            # print(B)
+            # print(1)
+            # print(np.shape(Q))
+            # print(np.shape(B))
+            C = B.reshape((len(B), ))
+            Q[0:N, 0] = C[0:N]
             # Effectively says average is 0 
             Q[N, 0] = 0
 
@@ -582,10 +611,14 @@ class colony:
 
                 # node.edges should give the same edge as the edge corresponding to node.tension_vectors since they are added together
                 # only want to add indices of edges that are part of colony edge list
+                #indices = np.array([edges.index(x) for x in node.edges if x in edges if x.radius is not None])
+                # Use this for the networkx plot
                 indices = np.array([edges.index(x) for x in node.edges if x in edges])
 
                 # similarly, only want to consider horizontal vectors that are a part of the colony edge list 
                 # x[0]
+                #horizontal_vectors = np.array([x[0] for x in node.tension_vectors if node.edges[node.tension_vectors.index(x)] in edges if node.edges[node.tension_vectors.index(x)].radius is not None])[np.newaxis]
+                #Use this for networkx plot
                 horizontal_vectors = np.array([x[0] for x in node.tension_vectors if node.edges[node.tension_vectors.index(x)] in edges])[np.newaxis]
                 
                 # add the horizontal vectors to the corresponding indices in temp
@@ -667,9 +700,15 @@ class colony:
 
                     convex_cell = e.convex_concave(c, cell)
                     if convex_cell == c:
-                        rhs.append(e.tension/ e.radius)
+                        if e.radius is not None:
+                            rhs.append(e.tension/ e.radius)
+                        else: 
+                            rhs.append(0)
                     else:
-                        rhs.append(np.negative(e.tension/ e.radius))
+                        if e.radius is not None:
+                            rhs.append(np.negative(e.tension/ e.radius))
+                        else:
+                            rhs.append(0)
 
                     
 
@@ -692,6 +731,246 @@ class colony:
             cell.pressure = pressures[j]
 
         return pressures, P
+
+
+class data:
+    def __init__(self, V, t):
+        """
+        Parameters
+        ---------
+        V is data structure obtained after loading the pickle file
+        t is time step
+        ---------
+        Outputs the nodes and edges in the data structure with some processing 
+        """
+        self.V = V
+        self.t = t
+        self.length = len(self.V[2][self.t])
+
+    def x(self, index, f_or_l):
+        """
+        Returns x co-ordinate of branch number "index" at branch end "f_or_l"
+        If f_or_l not specified, returns all x co-ordinates along the branch
+        -------------
+        Parameters
+        -------------
+        index - index of branch in the list of branches in the data
+        f_or_l - either first or last index on a branch
+
+        """
+        if f_or_l == "first":
+            return self.V[1][self.t][self.V[2][self.t][index][0], 1]
+        elif f_or_l == "last":
+            loc = len(self.V[2][self.t][index][:]) - 1
+            return self.V[1][self.t][self.V[2][self.t][index][loc], 1]
+        else:
+            return self.V[1][self.t][self.V[2][self.t][index][:], 1]     
+
+    def y(self, index, f_or_l):
+        """
+        Returns y co-ordinate of branch number "index" at branch end "f_or_l"
+        If f_or_l specified, returns all y co-ordinates along the branch 
+        -------------
+        Parameters
+        -------------
+        index - index of branch in the list of branches in the data
+        f_or_l (str) - either "first" or "last" index on a branch
+
+        """
+        if f_or_l == "first":
+            return self.V[1][self.t][self.V[2][self.t][index][0], 0]
+        elif f_or_l == "last":
+            loc = len(self.V[2][self.t][index][:]) - 1
+            return self.V[1][self.t][self.V[2][self.t][index][loc], 0]
+        else:
+            return self.V[1][self.t][self.V[2][self.t][index][:], 0]    
+
+    def add_node(self, index, f_or_l):
+        """
+        Define a node on branch "index" and location on branch "f_or_l" (str)
+        """
+        return node((self.x(index, f_or_l), self.y(index, f_or_l)))
+
+    def add_edge(self, node_a, node_b, index):
+        """
+        Define an edge given a branch index and end nodes of class node
+        Calls fit() to fit a curve to the data set
+        """
+
+        # Get all co-ordinates along the branch
+        x = self.x(index, None)
+        y = self.y(index, None)
+
+        # we want to fit a curve to this. Use least squares fitting.
+        # output is radius and x,y co-ordinates of the centre of circle
+        radius, xc, yc = self.fit(x,y)
+
+        # Check the direction of the curve. Do this by performing cross product 
+        x1, y1, x2, y2 = x[0], y[0], x[-1], y[-1]
+        v1 = [x1 - xc, y1 - yc]
+        v2 = [x2 - xc, y2 - yc]
+        cr = np.cross(v1, v2)
+        a = 0.5*np.linalg.norm(np.subtract([x2,y2], [x1,y1])) # dist to midpoint
+
+        # check if radius is 0
+        if radius > 0:
+            # Check for impossible arc
+            if a < radius:
+                # if cross product is negative, then we want to go from node_a to node_b
+                # if positive, we want to go from node_b to node_a
+                if cr > 0:
+                    ed = edge(node_b, node_a, radius)
+                    #ed = edge(node_b, node_a, radius, xc, yc)
+                else:
+                    ed = edge(node_a, node_b, radius)
+                    #ed = edge(node_a, node_b, radius, xc, yc)
+            else:
+                ed = edge(node_a, node_b, None)
+        else:
+            # if no radius, leave as None
+            ed = edge(node_a, node_b, None)
+        return ed
+
+    def fit(self, x,y):
+        """
+        Fit a circular arc to a list of co-ordinates
+        -----------
+        Parameters
+        -----------
+        x, y
+        """
+
+        def calc_R(xc, yc):
+            """ calculate the distance of each 2D points from the center (xc, yc) """
+            return np.sqrt((x-xc)**2 + (y-yc)**2)
+
+        def f_2(c):
+            """ calculate the algebraic distance between the data points and the mean circle centered at c=(xc, yc) """
+            Ri = calc_R(*c)
+            return Ri - Ri.mean()
+
+        x_m = np.mean(x)
+        y_m = np.mean(y)
+
+        center_estimate = x_m, y_m
+        center_2, ier = optimize.leastsq(f_2, center_estimate)
+
+        xc_2, yc_2 = center_2
+        Ri_2       = calc_R(*center_2)
+        R_2        = Ri_2.mean()
+        residu_2   = np.sum((Ri_2 - R_2)**2)
+
+        theta1 = np.rad2deg(np.arctan2(y[np.argmax(x)]-yc_2, x[np.argmax(x)]-xc_2)) # starting angle
+        theta2 = np.rad2deg(np.arctan2(y[np.argmin(x)]-yc_2, x[np.argmin(x)]-xc_2)) 
+
+        return R_2, xc_2, yc_2
+
+    def post_processing(self, cutoff, num = None):
+        """
+        post process the data to merge nodes that are within a distance
+        specified as 'cutoff'
+        ----------
+        Parameters 
+        ------------
+        cutoff - distance within which we merge nodes
+        num (optional) - Number of branches to consider (default - all of them)
+        """
+
+        nodes, edges = [], []
+
+        if num == None:
+            num = self.length
+
+        for index in range(num):
+            # Add 2 nodes at both ends of the branch
+            node_a = self.add_node(index, "first")
+            node_b = self.add_node(index, "last")
+        
+            dist_a, dist_b = [], []
+            for n in nodes:
+                # Find distance of all nodes in the list (nodes) from current node_a
+                dist_a.append(np.linalg.norm(np.subtract(n.loc, node_a.loc)))
+
+            if not dist_a:
+                # If dist = [], then nodes was empty -> add node_a to list
+                nodes.append(node_a)
+            else:
+                # If all values in dist are larger than a cutoff, add the node
+                if all(i >= cutoff for i in dist_a):
+                    nodes.append(node_a)  
+                else:
+                    # Find index of minimum distance value. Replace node_a with the node at that point
+                    ind = dist_a.index(min(dist_a))
+                    node_a = nodes[ind]
+
+            # Have to do this separately and not with node_a because
+            # we want to check that distance between node_a and node_b is very small too
+            # So if node_b is so close to node_a that we replace node_b with node_a, have to not add that edge
+            for n in nodes:
+                dist_b.append(np.linalg.norm(np.subtract(n.loc, node_b.loc)))
+
+            if not dist_b:
+                # If dist = [], then nodes was empty -> add node_a to list
+                nodes.append(node_b)
+            else:
+                # If all values in dist are larger than a cutoff, add the node
+                if all(i >= cutoff for i in dist_b):
+                    nodes.append(node_b)  
+                else:
+                    # Find index of minimum distance value. Replace node_a with the node at that point
+                    ind = dist_b.index(min(dist_b))
+                    node_b = nodes[ind]
+
+            if node_a.loc != node_b.loc:
+                ed = self.add_edge(node_a, node_b, index)
+                edges.append(ed)
+
+            #edge = self.add_edge(node_a, node_b, index)
+        return nodes, edges
+
+
+        
+
+    def plot(self, ax, type = None, num = None,  **kwargs):
+        """
+        Plot the data set 
+        ----------------
+        Parameters 
+        ----------------
+        ax - axes to be plotted on 
+        type - "edge_and_node", "node", "edge", "image" - specifying what you want to plot
+        num - number of branches to be plotted
+        """
+        if num == None:
+            num = self.length
+        else:
+            pass
+
+        if type == "edge_and_node" or type == "edges_and_nodes" or type == "edge_and_nodes" or type == "edges_and_node":
+            for i in range(num):
+                ax.plot(self.x(i, None), self.y(i, None), **kwargs)
+                ax.plot(self.x(i, "first"), self.y(i, "first"), 'ok')
+                ax.plot(self.x(i, "last"), self.y(i, "last"), 'ok')
+        elif type == "node" or type == "nodes":
+            for i in range(num):
+                ax.plot(self.x(i, "first"), self.y(i, "first"), 'ok')
+                ax.plot(self.x(i, "last"), self.y(i, "last"), 'ok')
+        elif type == "edge" or type == "edges":
+            for i in range(num):
+                ax.plot(self.x(i, None), self.y(i, None), **kwargs)
+        elif type == "image" or type == "images":
+            # plot image
+            img = ndimage.rotate(self.V[0][self.t] == 2, 0)
+            # plot the image with origin at lower left
+            ax.imshow(img, origin = 'lower')
+
+        ax.set(xlim = [0, 1000], ylim = [0, 1000], aspect = 1)
+            
+
+
+
+
+
 
 
 
