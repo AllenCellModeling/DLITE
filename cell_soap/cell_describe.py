@@ -5,8 +5,13 @@ from useful_functions import solution
 from filled_arc import arc_patch
 from scipy import ndimage, optimize
 import numpy.linalg as la
+import collections
 import scipy.linalg as linalg 
+from matplotlib import cm
+import os, sys
 import matplotlib.patches as mpatches
+import matplotlib.animation as manimation
+import pylab
 
 class node:
     def __init__(self, loc):
@@ -54,7 +59,7 @@ class node:
         ax.plot(self.loc[0], self.loc[1], ".", **kwargs)
 
 class edge:
-    def __init__(self, node_a, node_b, radius=None, xc = None, yc = None):
+    def __init__(self, node_a, node_b, radius=None, xc = None, yc = None, x_co_ords = None, y_co_ords = None):
         """
         Define an edge clockwise between node_a and node_b.
         -------------
@@ -75,6 +80,10 @@ class edge:
         self.xc = xc
         self.yc = yc 
 
+        # Save x and y co-ord info from the image
+        self.x_co_ords = x_co_ords
+        self.y_co_ords = y_co_ords
+
         node_a.edges = self
         node_b.edges = self
 
@@ -93,6 +102,11 @@ class edge:
 
     # def __str__(self):
     #     return "["+"   ->   ".join([str(n) for n in self.nodes])+"]"
+
+    @property
+    def co_ordinates(self):
+        return self.x_co_ords, self.y_co_ords
+    
 
     @property
     def cells(self):
@@ -169,7 +183,9 @@ class edge:
             # arc_patch(center, self.radius, th1, th2, ax=ax, fill=True, **kwargs)
 
         else:
-            ax.plot([a.x, b.x], [a.y, b.y], **kwargs)
+
+            # ax.plot([a.x, b.x], [a.y, b.y], **kwargs)
+             ax.plot([a.x, b.x], [a.y, b.y])
 
     @property
     def connected_edges(self):
@@ -594,6 +610,7 @@ class colony:
         #nodes = self.nodes
         nodes = self.tot_nodes
         #edges = self.edges
+
         edges = self.tot_edges
         # change above to self.nodes and self.edges to plot tensions only in cells found
 
@@ -605,7 +622,7 @@ class colony:
 
         for node in nodes:
             # only add a force balance if more than 2 edge connected to a node
-            if len(node.edges) > 1:
+            if len(node.edges) > 2:
                 # create a temporay list of zeros thats useful for stuff
                 temp = np.zeros((len(edges),1))
 
@@ -732,6 +749,51 @@ class colony:
 
         return pressures, P
 
+    def plot(self, ax, fig, tensions, pressures, **kwargs):
+        edges = self.tot_edges
+        nodes = self.nodes
+        ax.set(xlim = [0,1000], ylim = [0,1000], aspect = 1)
+
+        def norm(tensions):
+            return (tensions - min(tensions)) / float(max(tensions) - min(tensions))
+
+        def norm2(pressures):
+            return (pressures - np.mean(pressures))/float(np.std(pressures))
+
+        c1 = norm(tensions)
+        c2 = norm2(pressures)
+        # Plot pressures
+
+        for j, c in enumerate(self.cells):
+            x = [n.loc[0] for n in c.nodes]
+            y = [n.loc[1] for n in c.nodes]
+            plt.fill(x, y, c= cm.jet(c2[j]), alpha = 0.2)
+
+        sm = plt.cm.ScalarMappable(cmap=cm.jet, norm=plt.Normalize(vmin=-1, vmax=1))
+        # fake up the array of the scalar mappable. 
+        sm._A = []
+
+        cbaxes = fig.add_axes([0.8, 0.1, 0.03, 0.8])
+        cl = plt.colorbar(sm, cax = cbaxes)  
+        cl.set_label('Normalized pressure', fontsize = 13, labelpad = 10)
+
+        # # Plot tensions
+
+        for j, an_edge in enumerate(edges):
+            an_edge.plot(ax, ec = cm.jet(c1[j]), lw = 3)
+
+        sm = plt.cm.ScalarMappable(cmap=cm.jet, norm=plt.Normalize(vmin=0, vmax=1))
+        # fake up the array of the scalar mappable. 
+        sm._A = []
+
+        cbaxes = fig.add_axes([0.13, 0.1, 0.03, 0.8])
+        cl = plt.colorbar(sm, cax = cbaxes)
+        cl.set_label('Normalized tension', fontsize = 13, labelpad = -60)
+
+
+
+
+
 
 class data:
     def __init__(self, V, t):
@@ -791,15 +853,16 @@ class data:
         """
         return node((self.x(index, f_or_l), self.y(index, f_or_l)))
 
-    def add_edge(self, node_a, node_b, index):
+    def add_edge(self, node_a, node_b, index = None, x = None, y = None):
         """
         Define an edge given a branch index and end nodes of class node
         Calls fit() to fit a curve to the data set
         """
 
         # Get all co-ordinates along the branch
-        x = self.x(index, None)
-        y = self.y(index, None)
+        if index is not None:
+            x = self.x(index, None)
+            y = self.y(index, None)
 
         # we want to fit a curve to this. Use least squares fitting.
         # output is radius and x,y co-ordinates of the centre of circle
@@ -819,16 +882,16 @@ class data:
                 # if cross product is negative, then we want to go from node_a to node_b
                 # if positive, we want to go from node_b to node_a
                 if cr > 0:
-                    ed = edge(node_b, node_a, radius)
+                    ed = edge(node_b, node_a, radius, None, None, x, y)
                     #ed = edge(node_b, node_a, radius, xc, yc)
                 else:
-                    ed = edge(node_a, node_b, radius)
+                    ed = edge(node_a, node_b, radius, None, None, x, y)
                     #ed = edge(node_a, node_b, radius, xc, yc)
             else:
-                ed = edge(node_a, node_b, None)
+                ed = edge(node_a, node_b, None, None, x, y)
         else:
             # if no radius, leave as None
-            ed = edge(node_a, node_b, None)
+            ed = edge(node_a, node_b, None, None, x, y)
         return ed
 
     def fit(self, x,y):
@@ -925,11 +988,91 @@ class data:
                 ed = self.add_edge(node_a, node_b, index)
                 edges.append(ed)
 
-            #edge = self.add_edge(node_a, node_b, index)
+        # Remove dangling edges (single edges connected to an interface at nearly 90 deg angle)
+        nodes, edges = self.remove_dangling_edges(nodes, edges)
+        nodes, edges = self.remove_two_edge_connections(nodes, edges)
+
         return nodes, edges
 
+    def remove_dangling_edges(self, nodes, edges):
+        """
+        Remove edges that are connected to 2 other edges at a nearly 90 deg angle
+        Also remove edges that are connected to nobody else
+        """
+        # Get nodes connected to 1 edge
+        n_1_edges = [n for n in nodes if len(n.edges) == 1]
+        # Get those edges
+        if len(n_1_edges) > 0:
+            e_1 = [e for f in n_1_edges for e in f.edges]
+            # Get the other node on these edges
+            n_1_edges_b = [n for j, f in enumerate(e_1) for n in f.nodes if n != n_1_edges[j]]
 
-        
+        for j, e in enumerate(e_1):
+            # Check that this edge is really small
+            if e.straight_length < 60:
+                # Get all the edges on node_b of the edge e
+                other_edges = [a for a in n_1_edges_b[j].edges if a != e]
+                # Get the angle and edge of the edges that are perpendicular (nearly) to e
+                perps = []
+                perps = [b for b in other_edges if 85 < abs(e.edge_angle(b)) < 95 ]
+                # If there is such a perpendicular edge, we want to delete e
+                if perps != []:
+                    for perp in perps:
+                        if e in n_1_edges_b[j].edges:
+                            # Get index of edge e in node_b's edges
+                            ind = n_1_edges_b[j].edges.index(e)
+                            # remove tension vector and edge e from node b
+                            n_1_edges_b[j].tension_vectors.pop(ind)
+                            n_1_edges_b[j].edges.remove(e)
+                        if e in edges:
+                            edges.remove(e)
+
+        # Check for special case -> 2 nodes connected to single edge which they share - so connected to each other
+        repeated_edges = [item for item, count in collections.Counter(e_1).items() if count > 1]
+        [edges.remove(e) for e in repeated_edges]
+        # remove those nodes
+        [nodes.remove(n) for n in n_1_edges]
+        return nodes, edges
+
+    def remove_two_edge_connections(self, nodes, edges):
+        """
+        Remove a node and 2 edges if a node is connected to 2 edges
+        """
+        # Get nodes connected to 2 edges
+        n_2 = [n for n in nodes if len(n.edges) == 2]
+        # If there is such a node
+        if len(n_2) > 0:
+            for n in n_2:
+                # Get non common node in egde 0
+                node_a = [a for a in n.edges[0].nodes if a != n ][0]
+                # Get non common node in edge 1
+                node_b = [a for a in n.edges[1].nodes if a != n ][0]
+                # Remove edge 0 from node_a and edge 1 from node_b
+                # Remove corresponding tension vectors saved in node_a and node_b
+                ind_a = node_a.edges.index(n.edges[0])
+                ind_b = node_b.edges.index(n.edges[1])
+                node_a.tension_vectors.pop(ind_a)
+                node_b.tension_vectors.pop(ind_b)
+                node_a.edges.remove(n.edges[0])
+                node_b.edges.remove(n.edges[1])
+
+                # Get co-ordinates  of edge 0 and edge 1
+                x1, y1 = n.edges[0].co_ordinates
+                x2, y2 = n.edges[1].co_ordinates
+                # Extend the list x1, y1 to include x2 and y2 values
+                new_x = np.append(x1, x2)
+                new_y = np.append(y1, y2)
+                # Define a new edge with these co-ordinates
+                new_edge = self.add_edge(node_a, node_b, None, new_x, new_y)
+                # Finish cleanup. remove edge 0 and edge 1 from node n and then remove node n
+                # Add a new edge to the list
+                edges.remove(n.edges[0])
+                edges.remove(n.edges[1])
+                nodes.remove(n)
+                edges.append(new_edge)
+
+        return nodes, edges
+
 
     def plot(self, ax, type = None, num = None,  **kwargs):
         """
@@ -965,6 +1108,78 @@ class data:
             ax.imshow(img, origin = 'lower')
 
         ax.set(xlim = [0, 1000], ylim = [0, 1000], aspect = 1)
+
+class multiple_time:
+    def __init__(self, T, max_t):
+        """
+        Define a class to store the data structure at mutliple time points
+        """
+        self.T = T
+        self.max_t = max_t
+
+    def compute(self, t, cutoff):
+
+        # Set max iterations 
+        max_iter = 100
+        # Set initial cells
+        cells = []
+        # Get data
+        V = data(self.T, t)
+        # Get nodes, edges
+        nodes, edges = V.post_processing(cutoff, None)
+        # Get unique cells
+        for e in edges:
+            cell = e.which_cell(edges, 1, max_iter)
+            check = 0
+            if cell != []:
+                for c in cells:
+                    if set(cell.edges) == set(c.edges):
+                        check = 1
+                if check == 0:
+                    cells.append(cell)
+
+            cell = e.which_cell(edges, 0, max_iter)
+            check = 0
+            if cell != []:
+                for c in cells:
+                    if set(cell.edges) == set(c.edges):
+                        check = 1
+                if check == 0:
+                    cells.append(cell)
+        # Get tension and pressure
+        edges2 = [e for e in edges if e.radius is not None]
+        col1 = colony(cells, edges2, nodes)
+        tensions, P_T = col1.calculate_tension()
+        pressures, P_P = col1.calculate_pressure(tensions)
+
+        return col1, tensions, pressures
+
+
+    def plot(self, ax, fig, t, cutoff, **kwargs):
+
+        col1, tensions, pressures = self.compute(t, cutoff)
+        col1.plot(ax, fig, tensions, pressures)
+
+
+    def CreateMovie(self, ax, fig, number_of_times, cutoff, fps=10):
+         
+        for i in range(number_of_times):
+            self.plot(ax, fig, i, cutoff)
+
+            fname = '_tmp%05d.png'%i
+     
+            plt.savefig(fname)
+            plt.clf()     
+        os.system("rm movie.mp4")
+
+        os.system("ffmpeg -r "+str(fps)+" -b 1800 -i _tmp%05d.png movie.mp4")
+        os.system("rm _tmp*.png")
+
+
+
+
+
+
             
 
 
