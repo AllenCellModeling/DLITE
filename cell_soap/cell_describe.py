@@ -588,15 +588,27 @@ class colony:
             # print(np.shape(Q))
             # print(np.shape(B))
             C = B.reshape((len(B), ))
-            Q[0:N, 0] = C[0:N]
+            # print(np.shape(C))
+            # print(np.shape(Q))
+            if len(C) >= len(Q[0:N,0]):
+                Q[0:N, 0] = C[0:N]
+            else:
+                Q[0:len(C), 0] = C[0:len(C)]
             # Effectively says average is 0 
             Q[N, 0] = 0
 
 
         # Solve PX = Q
-        R1, R2 = linalg.qr(P) # QR decomposition with qr function
-        y = np.dot(R1.T, Q) # Let y=R1'.Q using matrix multiplication
-        x = linalg.solve(R2, y) # Solve Rx=y
+        try:
+            R1, R2 = linalg.qr(P) # QR decomposition with qr function
+            y = np.dot(R1.T, Q) # Let y=R1'.Q using matrix multiplication
+            x = linalg.solve(R2, y) # Solve Rx=y         
+        except np.linalg.LinAlgError as err:
+            if 'Matrix is singular' in str(err):
+                return None, None
+            else:
+                raise
+
 
         return x[0:N][:,0], P
 
@@ -684,8 +696,8 @@ class colony:
         Calculate pressure using calculated tensions and edge curvatures
         """
         # get the list of nodes and edges in the colony
-        nodes = self.nodes
-        edges = self.edges
+        #nodes = self.nodes
+        #edges = self.edges
 
         A = np.zeros((len(self.cells), 1))
 
@@ -699,12 +711,12 @@ class colony:
             common_edge_cells = [cell for cell in self.cells if set(c.edges).intersection(set(cell.edges)) != set() if cell != c]
             for cell in common_edge_cells:
                 # find common edges between cell and c
-                edges = [e for e in set(cell.edges).intersection(set(c.edges))]
+                c_edges = [e for e in set(cell.edges).intersection(set(c.edges))]
                 indices = []
                 indices.append(self.cells.index(c))
                 indices.append(self.cells.index(cell))
 
-                for e in edges:
+                for e in c_edges:
 
                     temp = np.zeros((len(self.cells),1))
                     # we are finding the pressure difference between 2 cells - (cell, c)
@@ -743,11 +755,63 @@ class colony:
 
         pressures, P  = self.solve_constrained_lsq(A, 1, rhs)
 
-
-        for j, cell in enumerate(self.cells):
-            cell.pressure = pressures[j]
+        # Output None if it is a singular matrix
+        if pressures is not None:
+            for j, cell in enumerate(self.cells):
+                cell.pressure = pressures[j]
 
         return pressures, P
+
+    def plot_tensions(self, ax, fig, tensions, **kwargs):
+
+        edges = self.tot_edges
+        nodes = self.nodes
+        ax.set(xlim = [0,1000], ylim = [0,1000], aspect = 1)
+
+        def norm(tensions):
+            return (tensions - min(tensions)) / float(max(tensions) - min(tensions))
+
+        c1 = norm(tensions)
+
+        # # Plot tensions
+
+        for j, an_edge in enumerate(edges):
+            an_edge.plot(ax, ec = cm.jet(c1[j]), lw = 3)
+
+        sm = plt.cm.ScalarMappable(cmap=cm.jet, norm=plt.Normalize(vmin=0, vmax=1))
+        # fake up the array of the scalar mappable. 
+        sm._A = []
+
+        cbaxes = fig.add_axes([0.13, 0.1, 0.03, 0.8])
+        cl = plt.colorbar(sm, cax = cbaxes)
+        cl.set_label('Normalized tension', fontsize = 13, labelpad = -60)
+
+    def plot_pressures(self, ax, fig, pressures, **kwargs):
+
+        edges = self.tot_edges
+        nodes = self.nodes
+        ax.set(xlim = [0,1000], ylim = [0,1000], aspect = 1)
+
+        def norm2(pressures):
+            return (pressures - np.mean(pressures))/float(np.std(pressures))
+
+        c2 = norm2(pressures)
+
+        # Plot pressures
+
+        for j, c in enumerate(self.cells):
+            x = [n.loc[0] for n in c.nodes]
+            y = [n.loc[1] for n in c.nodes]
+            plt.fill(x, y, c= cm.jet(c2[j]), alpha = 0.2)
+
+        sm = plt.cm.ScalarMappable(cmap=cm.jet, norm=plt.Normalize(vmin=-1, vmax=1))
+        # fake up the array of the scalar mappable. 
+        sm._A = []
+
+        cbaxes = fig.add_axes([0.8, 0.1, 0.03, 0.8])
+        cl = plt.colorbar(sm, cax = cbaxes)  
+        cl.set_label('Normalized pressure', fontsize = 13, labelpad = 10)
+
 
     def plot(self, ax, fig, tensions, pressures, **kwargs):
         edges = self.tot_edges
@@ -1073,6 +1137,44 @@ class data:
 
         return nodes, edges
 
+    def compute(self, cutoff):
+
+        # Set max iterations for cycle finding
+        max_iter = 100
+        # Set initial cells
+        cells = []
+
+        
+        # Get nodes, edges
+        nodes, edges = self.post_processing(cutoff, None)
+        # Get unique cells
+        for e in edges:
+            cell = e.which_cell(edges, 1, max_iter)
+            check = 0
+            if cell != []:
+                for c in cells:
+                    if set(cell.edges) == set(c.edges):
+                        check = 1
+                if check == 0:
+                    cells.append(cell)
+
+            cell = e.which_cell(edges, 0, max_iter)
+            check = 0
+            if cell != []:
+                for c in cells:
+                    if set(cell.edges) == set(c.edges):
+                        check = 1
+                if check == 0:
+                    cells.append(cell)
+        # Get tension and pressure
+        edges2 = [e for e in edges if e.radius is not None]
+        col1 = colony(cells, edges2, nodes)
+        tensions, P_T = col1.calculate_tension()
+        pressures, P_P = col1.calculate_pressure(tensions)
+        
+
+        return col1, tensions, pressures, P_T, P_P
+
 
     def plot(self, ax, type = None, num = None,  **kwargs):
         """
@@ -1109,57 +1211,39 @@ class data:
 
         ax.set(xlim = [0, 1000], ylim = [0, 1000], aspect = 1)
 
-class multiple_time:
-    def __init__(self, T, max_t):
+class data_multiple:
+    def __init__(self, pkl):
         """
         Define a class to store the data structure at mutliple time points
         """
-        self.T = T
-        self.max_t = max_t
+        self.pkl = pkl
 
     def compute(self, t, cutoff):
-
-        # Set max iterations 
-        max_iter = 100
-        # Set initial cells
-        cells = []
-        # Get data
-        V = data(self.T, t)
-        # Get nodes, edges
-        nodes, edges = V.post_processing(cutoff, None)
-        # Get unique cells
-        for e in edges:
-            cell = e.which_cell(edges, 1, max_iter)
-            check = 0
-            if cell != []:
-                for c in cells:
-                    if set(cell.edges) == set(c.edges):
-                        check = 1
-                if check == 0:
-                    cells.append(cell)
-
-            cell = e.which_cell(edges, 0, max_iter)
-            check = 0
-            if cell != []:
-                for c in cells:
-                    if set(cell.edges) == set(c.edges):
-                        check = 1
-                if check == 0:
-                    cells.append(cell)
-        # Get tension and pressure
-        edges2 = [e for e in edges if e.radius is not None]
-        col1 = colony(cells, edges2, nodes)
-        tensions, P_T = col1.calculate_tension()
-        pressures, P_P = col1.calculate_pressure(tensions)
-
-        return col1, tensions, pressures
-
+        V = data(self.pkl, t)
+        col1, tensions, pressures, P_T, P_P = V.compute(cutoff)
+        return col1, tensions, pressures, P_T, P_P
 
     def plot(self, ax, fig, t, cutoff, **kwargs):
 
-        col1, tensions, pressures = self.compute(t, cutoff)
-        col1.plot(ax, fig, tensions, pressures)
+        col1, tensions, pressures, P_T, P_P = self.compute(t, cutoff)
+        #col1.plot(ax, fig, tensions, pressures)
+        col1.plot_tensions(ax, fig, tensions)
 
+    def plot_cells(self, ax, t, cutoff, **kwargs):
+        ax.set(xlim = [0,1000], ylim = [0,1000], aspect = 1)
+        col1, tensions, pressures, P_T, P_P = self.compute(t, cutoff)
+        cells = col1.cells
+        [c.plot(ax) for c in cells]
+
+
+    def save_pictures(self, ax, fig, max_t, cutoff, **kwargs):
+        for g, t in enumerate(range(max_t)):
+            self.plot(ax, fig, t, cutoff)
+            pylab.savefig('0000{0}.png'.format(g), dpi=200)
+            plt.cla()
+            plt.clf()
+            plt.close()
+            fig, ax = plt.subplots(1,1, figsize = (8, 5))
 
     def CreateMovie(self, ax, fig, number_of_times, cutoff, fps=10):
          
@@ -1169,7 +1253,10 @@ class multiple_time:
             fname = '_tmp%05d.png'%i
      
             plt.savefig(fname)
-            plt.clf()     
+            plt.clf() 
+            plt.cla() 
+            plt.close()
+            fig, ax = plt.subplots(1,1, figsize = (8,5))   
         os.system("rm movie.mp4")
 
         os.system("ffmpeg -r "+str(fps)+" -b 1800 -i _tmp%05d.png movie.mp4")
