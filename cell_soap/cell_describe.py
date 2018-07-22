@@ -616,7 +616,7 @@ class colony:
 
     def calculate_tension(self):
         """
-        Calculate tension along every edge of the colony
+        Calculate tension along every edge of the colony (including stray edges)
         """
         # get the list of nodes and edges in the colony
         #nodes = self.nodes
@@ -693,7 +693,8 @@ class colony:
 
     def calculate_pressure(self, tensions):
         """
-        Calculate pressure using calculated tensions and edge curvatures
+        Calculate pressure using calculated tensions and edge curvatures (radii). 
+        Pressure is unique to every cell
         """
         # get the list of nodes and edges in the colony
         #nodes = self.nodes
@@ -763,6 +764,9 @@ class colony:
         return pressures, P
 
     def plot_tensions(self, ax, fig, tensions, **kwargs):
+        """
+        Plot normalized tensions (min, width) with colorbar
+        """
 
         edges = self.tot_edges
         nodes = self.nodes
@@ -787,6 +791,9 @@ class colony:
         cl.set_label('Normalized tension', fontsize = 13, labelpad = -60)
 
     def plot_pressures(self, ax, fig, pressures, **kwargs):
+        """
+        Plot normalized pressures (mean, std) with colorbar 
+        """
 
         edges = self.tot_edges
         nodes = self.nodes
@@ -814,6 +821,9 @@ class colony:
 
 
     def plot(self, ax, fig, tensions, pressures, **kwargs):
+        """
+        Plot both tensions and pressures on a single axes
+        """
         edges = self.tot_edges
         nodes = self.nodes
         ax.set(xlim = [0,1000], ylim = [0,1000], aspect = 1)
@@ -854,11 +864,6 @@ class colony:
         cl = plt.colorbar(sm, cax = cbaxes)
         cl.set_label('Normalized tension', fontsize = 13, labelpad = -60)
 
-
-
-
-
-
 class data:
     def __init__(self, V, t):
         """
@@ -867,7 +872,6 @@ class data:
         V is data structure obtained after loading the pickle file
         t is time step
         ---------
-        Outputs the nodes and edges in the data structure with some processing 
         """
         self.V = V
         self.t = t
@@ -876,7 +880,8 @@ class data:
     def x(self, index, f_or_l):
         """
         Returns x co-ordinate of branch number "index" at branch end "f_or_l"
-        If f_or_l not specified, returns all x co-ordinates along the branch
+        If f_or_l (str value - 'first', or 'last') not specified,
+         returns all x co-ordinates along the branch
         -------------
         Parameters
         -------------
@@ -895,7 +900,8 @@ class data:
     def y(self, index, f_or_l):
         """
         Returns y co-ordinate of branch number "index" at branch end "f_or_l"
-        If f_or_l specified, returns all y co-ordinates along the branch 
+        If f_or_l (str value - 'first', or 'last') not specified, 
+        returns all y co-ordinates along the branch 
         -------------
         Parameters
         -------------
@@ -921,6 +927,16 @@ class data:
         """
         Define an edge given a branch index and end nodes of class node
         Calls fit() to fit a curve to the data set
+        -----------
+        Parameters
+        -----------
+        node_a - node object at one end of the edge
+        node_b - node object at other end of the edge
+        index = Branch location. If this is specified, can get the x and y co-ordinates
+        of this branch location from data 
+        If index is not specified, x and y need to be provided. 
+        x - x co-ordinates along the edge
+        y - y co-ordinates along the edge
         """
 
         # Get all co-ordinates along the branch
@@ -995,7 +1011,9 @@ class data:
     def post_processing(self, cutoff, num = None):
         """
         post process the data to merge nodes that are within a distance
-        specified as 'cutoff'
+        specified as 'cutoff'. Also calls functions 
+        (1) remove_dangling_edges 
+        (2) remove_two_edge_connections
         ----------
         Parameters 
         ------------
@@ -1060,7 +1078,9 @@ class data:
 
     def remove_dangling_edges(self, nodes, edges):
         """
-        Remove edges that are connected to 2 other edges at a nearly 90 deg angle
+        Clean up nodes connected to 1 edge
+        Do this by -
+        Removing edges that are really small and connected to 2 other edges at a nearly 90 deg angle
         Also remove edges that are connected to nobody else
         """
         # Get nodes connected to 1 edge
@@ -1100,7 +1120,7 @@ class data:
 
     def remove_two_edge_connections(self, nodes, edges):
         """
-        Remove a node and 2 edges if a node is connected to 2 edges
+        Clean up nodes connected to 2 edges
         """
         # Get nodes connected to 2 edges
         n_2 = [n for n in nodes if len(n.edges) == 2]
@@ -1138,6 +1158,14 @@ class data:
         return nodes, edges
 
     def compute(self, cutoff):
+        """
+        Computation process. Steps ->
+        (1) Call post_processing() -> returns nodes and edges
+        (2) Call which_cell() for each edge -> returns cells 
+        (3) Define colony
+        (4) Call calculate_tension() - find tensions
+        (5) Call calculate_pressure() - find pressure
+        """
 
         # Set max iterations for cycle finding
         max_iter = 100
@@ -1214,22 +1242,35 @@ class data:
 class data_multiple:
     def __init__(self, pkl):
         """
-        Define a class to store the data structure at mutliple time points
+        Define a class to store the pickle file including all the time points
         """
         self.pkl = pkl
 
     def compute(self, t, cutoff):
+        """
+        Perform the computation at a specified time and cutoff
+        ---------
+        Parameters 
+        ---------
+        t - time to calculate things 
+        cutoff - minimum distance below which we merge nodes
+        """
         V = data(self.pkl, t)
         col1, tensions, pressures, P_T, P_P = V.compute(cutoff)
         return col1, tensions, pressures, P_T, P_P
 
     def plot(self, ax, fig, t, cutoff, **kwargs):
-
+        """
+        Plot stuff at specified time and cutoff
+        """
         col1, tensions, pressures, P_T, P_P = self.compute(t, cutoff)
         #col1.plot(ax, fig, tensions, pressures)
         col1.plot_tensions(ax, fig, tensions)
 
     def plot_cells(self, ax, t, cutoff, **kwargs):
+        """
+        Plot all cells found for specified time and cutoff
+        """
         ax.set(xlim = [0,1000], ylim = [0,1000], aspect = 1)
         col1, tensions, pressures, P_T, P_P = self.compute(t, cutoff)
         cells = col1.cells
@@ -1237,6 +1278,15 @@ class data_multiple:
 
 
     def save_pictures(self, ax, fig, max_t, cutoff, **kwargs):
+        """
+        Save a specified number of pictures 
+        ---------
+        Parameters 
+        ---------
+        ax, fig - fig stuff
+        max_t - the maximum number of pictures to save
+        cutoff - merge value 
+        """
         for g, t in enumerate(range(max_t)):
             self.plot(ax, fig, t, cutoff)
             pylab.savefig('0000{0}.png'.format(g), dpi=200)
@@ -1246,6 +1296,15 @@ class data_multiple:
             fig, ax = plt.subplots(1,1, figsize = (8, 5))
 
     def CreateMovie(self, ax, fig, number_of_times, cutoff, fps=10):
+        """
+        Create a movie for a specified number of frames
+        ----------
+        Parameters
+        ----------
+        ax, fig - fig stuff
+        number_of_times - number of frames to save to the movie
+        cutoff - merge value
+        """
          
         for i in range(number_of_times):
             self.plot(ax, fig, i, cutoff)
