@@ -12,6 +12,8 @@ import os, sys
 import matplotlib.patches as mpatches
 import matplotlib.animation as manimation
 import pylab
+import scipy
+#from Dave_cell_find import find_all_cells, cells_on_either_side, trace_cell_cycle
 
 class node:
     def __init__(self, loc):
@@ -84,6 +86,7 @@ class edge:
         self.x_co_ords = x_co_ords
         self.y_co_ords = y_co_ords
 
+
         node_a.edges = self
         node_b.edges = self
 
@@ -118,6 +121,10 @@ class edge:
             self._cells.append(cell)
 
     def kill_edge(self, node):
+        """
+        Kill edge for a specified node i.e kill the edge and tension vector 
+        associated with the specified node 
+        """
 
         if node == self.node_a:
             self.node_a.remove_edge(self)
@@ -130,8 +137,7 @@ class edge:
 
     @tension.setter
     def tension(self, tension):
-        if tension not in self._tension:
-            self._tension.append(tension)
+        self._tension = tension
 
     @property
     def straight_length(self):
@@ -146,6 +152,9 @@ class edge:
         x0, y0 = 0.5*np.subtract(point2, point1)+point1 # midpoint
         a = 0.5*np.linalg.norm(np.subtract(point2, point1)) # dist to midpoint
         assert a<radius, "Impossible arc asked for, radius too small"
+        # if a>radius:
+        #     edge.radius = radius + 1
+        #     edge._circle_arc_center(point1, point2, radius +1)
         b = np.sqrt(radius**2-a**2) # midpoint to circle center
         xc = x0 + (b*(y0-y1))/a # location of circle center
         yc = y0 - (b*(x0-x1))/a
@@ -212,11 +221,19 @@ class edge:
             # find edge vectors from common node
             this_vec = np.subtract(this_other_node.loc, common_node.loc)
             other_vec = np.subtract(other_other_node.loc, common_node.loc)
+
+            # My method
             # find angles of each 
             cosang = np.dot(this_vec, other_vec)
             #sinang = np.linalg.norm(np.cross(this_vec, other_vec))
             sinang = np.cross(this_vec, other_vec)
             return np.rad2deg(np.arctan2(sinang, cosang))  # maybe use %(2*np.pi)
+
+            # Dave's method
+            # this_ang = np.arctan2(this_vec[1], this_vec[0])
+            # other_ang = np.arctan2(other_vec[1], other_vec[0]) 
+            # angle = (2*np.pi + other_ang - this_ang)%(2*np.pi) # convert to 0->2pi
+            # return angle         
         except:
             return []
 
@@ -600,9 +617,14 @@ class colony:
 
         # Solve PX = Q
         try:
-            R1, R2 = linalg.qr(P) # QR decomposition with qr function
-            y = np.dot(R1.T, Q) # Let y=R1'.Q using matrix multiplication
-            x = linalg.solve(R2, y) # Solve Rx=y         
+            # By QR decomposition
+            # R1, R2 = linalg.qr(P) # QR decomposition with qr function
+            # y = np.dot(R1.T, Q) # Let y=R1'.Q using matrix multiplication
+            # x = linalg.solve(R2, y) # Solve Rx=y 
+
+            # By LU decomposition - Both give same results        
+            L, U = scipy.linalg.lu_factor(P)
+            x = scipy.linalg.lu_solve((L, U), Q)
         except np.linalg.LinAlgError as err:
             if 'Matrix is singular' in str(err):
                 return None, None
@@ -614,16 +636,17 @@ class colony:
 
 
 
-    def calculate_tension(self):
+    def calculate_tension(self, nodes = None, edges = None):
         """
         Calculate tension along every edge of the colony (including stray edges)
         """
         # get the list of nodes and edges in the colony
         #nodes = self.nodes
-        nodes = self.tot_nodes
+        if nodes == None:
+            nodes = self.tot_nodes
         #edges = self.edges
-
-        edges = self.tot_edges
+        if edges == None:
+            edges = self.tot_edges
         # change above to self.nodes and self.edges to plot tensions only in cells found
 
         # We want to solve for AX = 0 where A is the coefficient matrix - 
@@ -685,11 +708,42 @@ class colony:
         ## MAIN SOLVER
         tensions, P = self.solve_constrained_lsq(A, 0, None)
 
+
         # Add tensions to edge
         for j, edge in enumerate(edges):
             edge.tension = tensions[j]
 
         return tensions, P
+
+    def remove_outliers(self, bad_tensions, tensions):
+        """
+        Removing those edges that are giving tensions more than 3 std away from mean value
+        -------
+        Parameters
+        -------
+        bad_tensions - values of tensions that are more than 3 std away
+        tensions - list of all edge tensions
+        """
+        nodes = self.tot_nodes
+        edges = self.tot_edges
+        # Find indices of bad tensions
+        indices = [np.where(tensions - bad_tensions[i] == 0)[0][0] for i in range(len(bad_tensions))]
+
+        bad_edges = [edges[i] for i in indices]
+        for ed in bad_edges:
+            ed.kill_edge(ed.node_a)
+            ed.kill_edge(ed.node_b)
+            if len(ed.node_a.edges) == 0:
+                if ed.node_a in nodes:
+                    nodes.remove(ed.node_a)
+            if len(ed.node_b.edges) == 0:
+                if ed.node_b in nodes:
+                    nodes.remove(ed.node_b)
+            edges.remove(ed)
+
+        return nodes, edges 
+
+
 
     def calculate_pressure(self, tensions):
         """
@@ -769,7 +823,7 @@ class colony:
         """
 
         edges = self.tot_edges
-        nodes = self.nodes
+
         ax.set(xlim = [0,1000], ylim = [0,1000], aspect = 1)
 
         def norm(tensions):
@@ -948,6 +1002,7 @@ class data:
         # output is radius and x,y co-ordinates of the centre of circle
         radius, xc, yc = self.fit(x,y)
 
+
         # Check the direction of the curve. Do this by performing cross product 
         x1, y1, x2, y2 = x[0], y[0], x[-1], y[-1]
         v1 = [x1 - xc, y1 - yc]
@@ -968,10 +1023,10 @@ class data:
                     ed = edge(node_a, node_b, radius, None, None, x, y)
                     #ed = edge(node_a, node_b, radius, xc, yc)
             else:
-                ed = edge(node_a, node_b, None, None, x, y)
+                ed = edge(node_a, node_b, None,  None, None, x, y)
         else:
             # if no radius, leave as None
-            ed = edge(node_a, node_b, None, None, x, y)
+            ed = edge(node_a, node_b, None, None, None, x, y)
         return ed
 
     def fit(self, x,y):
@@ -991,6 +1046,7 @@ class data:
             """ calculate the algebraic distance between the data points and the mean circle centered at c=(xc, yc) """
             Ri = calc_R(*c)
             return Ri - Ri.mean()
+
 
         x_m = np.mean(x)
         y_m = np.mean(y)
@@ -1093,12 +1149,12 @@ class data:
 
         for j, e in enumerate(e_1):
             # Check that this edge is really small
-            if e.straight_length < 60:
+            if e.straight_length < 100:
                 # Get all the edges on node_b of the edge e
                 other_edges = [a for a in n_1_edges_b[j].edges if a != e]
                 # Get the angle and edge of the edges that are perpendicular (nearly) to e
                 perps = []
-                perps = [b for b in other_edges if 85 < abs(e.edge_angle(b)) < 95 ]
+                perps = [b for b in other_edges if 85 < abs(e.edge_angle(b)) < 95 ] # 85 - 95
                 # If there is such a perpendicular edge, we want to delete e
                 if perps != []:
                     for perp in perps:
@@ -1157,25 +1213,15 @@ class data:
 
         return nodes, edges
 
-    def compute(self, cutoff):
-        """
-        Computation process. Steps ->
-        (1) Call post_processing() -> returns nodes and edges
-        (2) Call which_cell() for each edge -> returns cells 
-        (3) Define colony
-        (4) Call calculate_tension() - find tensions
-        (5) Call calculate_pressure() - find pressure
-        """
+    @staticmethod
+    def find_cycles(edges):
 
         # Set max iterations for cycle finding
         max_iter = 100
         # Set initial cells
         cells = []
 
-        
-        # Get nodes, edges
-        nodes, edges = self.post_processing(cutoff, None)
-        # Get unique cells
+        # My method
         for e in edges:
             cell = e.which_cell(edges, 1, max_iter)
             check = 0
@@ -1194,10 +1240,46 @@ class data:
                         check = 1
                 if check == 0:
                     cells.append(cell)
+        return cells
+
+
+    def compute(self, cutoff, nodes = None, edges = None):
+        """
+        Computation process. Steps ->
+        (1) Call post_processing() -> returns nodes and edges
+        (2) Call which_cell() for each edge -> returns cells 
+        (3) Define colony
+        (4) Call calculate_tension() - find tensions
+            (1) If any bad edges (> 3 std away, call remove_outliers() and repeat computation)
+        (5) Call calculate_pressure() - find pressure
+        """
+     
+        # Get nodes, edges
+        if nodes is None and edges is None:
+            nodes, edges = self.post_processing(cutoff, None)
+        
+        # Get unique cells
+        cells = self.find_cycles(edges)
+
+
         # Get tension and pressure
         edges2 = [e for e in edges if e.radius is not None]
         col1 = colony(cells, edges2, nodes)
         tensions, P_T = col1.calculate_tension()
+
+        # Check for bad tension values
+        # Find mean and std
+        mean = np.mean(tensions)
+        sd = np.std(tensions)
+
+        # Find tensions more than 3 standard deviations away
+        bad_tensions = [x for x in tensions if (x < mean - 3 * sd) or (x > mean + 3 * sd)]
+
+        if len(bad_tensions) > 0:
+            new_nodes, new_edges = col1.remove_outliers(bad_tensions, tensions)
+            col1, tensions, _, P_T, _ =  self.compute(cutoff, new_nodes, new_edges)
+
+
         pressures, P_P = col1.calculate_pressure(tensions)
         
 
