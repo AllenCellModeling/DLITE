@@ -197,6 +197,23 @@ class edge:
             # ax.plot([a.x, b.x], [a.y, b.y], **kwargs)
              ax.plot([a.x, b.x], [a.y, b.y])
 
+    def plot_fill(self, ax, resolution = 50, **kwargs):
+        a, b = self.node_a, self.node_b
+        if self.radius is not None:
+            center, th1, th2 = self.arc_translation(a.loc, b.loc, self.radius)
+            old_th1, old_th2 = th1, th2
+            th1, th2 = (th1 + 720) % 360, (th2 + 720) % 360
+            if abs(th2 - th1) > 180:
+                th2, th1 = old_th2, old_th1
+            #print(2, th1, th2)
+
+            theta = np.linspace(np.radians(th1), np.radians(th2), resolution)
+            points = np.vstack((self.radius*np.cos(theta) + center[0], self.radius*np.sin(theta) + center[1]))
+            # build the polygon and add it to the axes
+            poly = mpatches.Polygon(points.T, closed=True, **kwargs)
+            ax.add_patch(poly)
+            return poly
+
     @property
     def connected_edges(self):
         """The edges connected to nodes a and b"""
@@ -889,9 +906,6 @@ class colony:
         """
         Plot normalized pressures (mean, std) with colorbar 
         """
-
-        edges = self.tot_edges
-        nodes = self.nodes
         ax.set(xlim = [0,1000], ylim = [0,1000], aspect = 1)
 
         def norm2(pressures):
@@ -905,6 +919,8 @@ class colony:
             x = [n.loc[0] for n in c.nodes]
             y = [n.loc[1] for n in c.nodes]
             plt.fill(x, y, c= cm.jet(c2[j]), alpha = 0.2)
+            for e in c.edges:
+                e.plot_fill(ax, color = cm.jet(c2[j]), alpha = 0.2)
 
         sm = plt.cm.ScalarMappable(cmap=cm.jet, norm=plt.Normalize(vmin=-1, vmax=1))
         # fake up the array of the scalar mappable. 
@@ -937,6 +953,8 @@ class colony:
             x = [n.loc[0] for n in c.nodes]
             y = [n.loc[1] for n in c.nodes]
             plt.fill(x, y, c= cm.jet(c2[j]), alpha = 0.2)
+            for e in c.edges:
+                e.plot_fill(ax, color = cm.jet(c2[j]), alpha = 0.2)
 
         sm = plt.cm.ScalarMappable(cmap=cm.jet, norm=plt.Normalize(vmin=-1, vmax=1))
         # fake up the array of the scalar mappable. 
@@ -1056,6 +1074,7 @@ class data:
         a = 0.5*np.linalg.norm(np.subtract([x2,y2], [x1,y1])) # dist to midpoint
         # Check if radius is 0
         if radius > 0:
+
             # Check for impossible arc
             if a < radius:
                 # if cross product is negative, then we want to go from node_a to node_b
@@ -1068,7 +1087,7 @@ class data:
                         ed = edge(node_b, node_a, radius, None, None, x, y)
                     #ed = edge(node_b, node_a, radius, xc, yc)
                 else:
-                    if radius == 310.7056676687468:
+                    if radius == 310.7056676687468 or radius == 302.67735946711764:
                         ed = edge(node_b, node_a, radius, None, None, x, y)
                     else:
                         ed = edge(node_a, node_b, radius, None, None, x, y)
@@ -1081,13 +1100,12 @@ class data:
                     #ed = edge(node_b, node_a, None,  None, None, x, y)
                         ed = edge(node_b, node_a, radius + 30,  None, None, x, y)
                 else:
-                    if radius == 37.262213713433155 or radius == 62.61598322629542 or radius == 76.8172271622748:
+                    if radius == 37.262213713433155 or radius == 62.61598322629542 or radius == 76.8172271622748 or radius == 42.1132395657534:
                         ed = edge(node_b, node_a, radius + 30,  None, None, x, y)
                     else:
                     #ed = edge(node_a, node_b, None,  None, None, x, y)
                         ed = edge(node_a, node_b, radius + 30,  None, None, x, y)
         else:
-            print('why2')
             # if no radius, leave as None
             ed = edge(node_a, node_b, None, None, None, x, y)
         return ed
@@ -1200,11 +1218,11 @@ class data:
 
         # #nodes, edges = self.remove_dangling_edges(nodes, edges)
         # # #try 
-        #nodes, edges = self.remove_two_edge_connections(nodes, edges)
-        #nodes, edges = self.remove_two_edge_connections(nodes, edges)
-
-
         nodes, edges = self.remove_two_edge_connections(nodes, edges)
+        #nodes, edges = self.remove_two_edge_connections(nodes, edges)
+
+
+        #nodes, edges = self.remove_two_edge_connections(nodes, edges)
         #nodes, edges = self.remove_two_edge_connections(nodes, edges)
         # len2 = len(edges)
         # if len2 < len1:
@@ -1244,7 +1262,7 @@ class data:
                 other_edges = [a for a in n_1_edges_b[j].edges if a != e]
                 # Get the angle and edge of the edges that are perpendicular (nearly) to e
                 perps = []
-                perps = [b for b in other_edges if 0 < abs(e.edge_angle(b)) < 180 ] # 85 - 95, 40 - 140
+                perps = [b for b in other_edges if 85 < abs(e.edge_angle(b)) < 95 ] # 85 - 95, 40 - 140
                 # If there is such a perpendicular edge, we want to delete e
                 if perps != []:
                     other_node = [n for n in e.nodes if n != n_1_edges_b[j]][0]
@@ -1283,7 +1301,7 @@ class data:
         if len(n_2) > 0:
             for n in n_2:
                 angle = n.edges[0].edge_angle(n.edges[1])
-                if 0 < abs(angle) < 180 or 0 < abs(angle) < 180:  
+                if 120 < abs(angle) < 180 or 0 < abs(angle) < 60:  
                     # Get non common node in egde 0
                     node_a = [a for a in n.edges[0].nodes if a != n ][0]
                     # Get non common node in edge 1
