@@ -144,17 +144,18 @@ class edge:
         """The distance from node A to node B"""
         return np.linalg.norm(np.subtract(self.node_a.loc, self.node_b.loc))
 
-    @staticmethod
-    def _circle_arc_center(point1, point2, radius):
+#    @staticmethod
+#    def _circle_arc_center(point1, point2, radius):
+    def _circle_arc_center(self, point1, point2, radius):
         """Get the center of a circle from arc endpoints and radius"""
         x1, y1 = point1
         x2, y2 = point2
         x0, y0 = 0.5*np.subtract(point2, point1)+point1 # midpoint
         a = 0.5*np.linalg.norm(np.subtract(point2, point1)) # dist to midpoint
-        assert a<radius, "Impossible arc asked for, radius too small"
-        # if a>radius:
-        #     edge.radius = radius + 1
-        #     edge._circle_arc_center(point1, point2, radius +1)
+       # assert a<radius, "Impossible arc asked for, radius too small"
+        if a>radius:
+            self.radius = radius + 60
+            radius = radius + 60
         b = np.sqrt(radius**2-a**2) # midpoint to circle center
         xc = x0 + (b*(y0-y1))/a # location of circle center
         yc = y0 - (b*(x0-x1))/a
@@ -338,6 +339,7 @@ class edge:
         cell_edges = []
 
         # Find connected edges to current edge at node_a
+
         con_edges0 = self.connected_edges[0]
 
         # Find angles of these connected edges
@@ -363,7 +365,7 @@ class edge:
             if other_node != self.node_b:
 
                 # Make a list of all nodes and edges found so far
-                cell_nodes = [self.node_a, common_node, other_node]
+                cell_nodes = [self.node_b, common_node, other_node]
                 cell_edges = [self, edge1[0]]
             
                 # Call recursion algorithm
@@ -506,6 +508,9 @@ class cell:
         if colony not in self._colony_cell:
             self._colony_cell.append(colony)
 
+    def perimeter(self):
+        return sum([e.straight_length for e in self.edges ])  
+    
     @property
     def pressure(self):
         return self._pressure
@@ -604,7 +609,9 @@ class colony:
             # print(1)
             # print(np.shape(Q))
             # print(np.shape(B))
-            C = B.reshape((len(B), ))
+            C = np.dot(A.T, B)
+            C = C.reshape((len(C), ))
+            # C = B.reshape((len(B), ))
             # print(np.shape(C))
             # print(np.shape(Q))
             if len(C) >= len(Q[0:N,0]):
@@ -618,16 +625,16 @@ class colony:
         # Solve PX = Q
         try:
             # By QR decomposition
-            # R1, R2 = linalg.qr(P) # QR decomposition with qr function
-            # y = np.dot(R1.T, Q) # Let y=R1'.Q using matrix multiplication
-            # x = linalg.solve(R2, y) # Solve Rx=y 
+            R1, R2 = linalg.qr(P) # QR decomposition with qr function
+            y = np.dot(R1.T, Q) # Let y=R1'.Q using matrix multiplication
+            x = linalg.solve(R2, y) # Solve Rx=y 
 
             # By LU decomposition - Both give same results        
-            L, U = scipy.linalg.lu_factor(P)
-            x = scipy.linalg.lu_solve((L, U), Q)
+            # L, U = scipy.linalg.lu_factor(P)
+            # x = scipy.linalg.lu_solve((L, U), Q)
         except np.linalg.LinAlgError as err:
             if 'Matrix is singular' in str(err):
-                return None, None
+                return None, P
             else:
                 raise
 
@@ -713,7 +720,7 @@ class colony:
         for j, edge in enumerate(edges):
             edge.tension = tensions[j]
 
-        return tensions, P
+        return tensions, P, A
 
     def remove_outliers(self, bad_tensions, tensions):
         """
@@ -760,16 +767,21 @@ class colony:
         rhs = []
         #rhs = np.zeros((len(edges), 1))
 
+
         for c in self.cells:
+
 
             # find cells with a common edge to c
             common_edge_cells = [cell for cell in self.cells if set(c.edges).intersection(set(cell.edges)) != set() if cell != c]
+
+            # If there are two cells that share an edge, can calculate pressure difference across it
             for cell in common_edge_cells:
                 # find common edges between cell and c
                 c_edges = [e for e in set(cell.edges).intersection(set(c.edges))]
                 indices = []
                 indices.append(self.cells.index(c))
                 indices.append(self.cells.index(cell))
+
 
                 for e in c_edges:
 
@@ -785,7 +797,8 @@ class colony:
                     convex_cell = e.convex_concave(c, cell)
                     if convex_cell == c:
                         if e.radius is not None:
-                            rhs.append(e.tension/ e.radius)
+                            if e.tension is not []:
+                                rhs.append(e.tension/ e.radius)
                         else: 
                             rhs.append(0)
                     else:
@@ -799,6 +812,25 @@ class colony:
         A = A.T
         A = np.delete(A, (0), axis=0)
         rhs = np.array(rhs)
+
+        # Check for all zero columns. If any column is all zero, that means the cell doesnt share a common edge with any other cell
+        def delete_column(A, index):
+            A = np.delete(A, np.s_[index], axis=1)
+            new_index = np.where(~A.any(axis=0))[0]
+
+            if len(new_index) > 0:
+                A = delete_column(A, new_index[0])
+            return A
+
+        # Save indicies of cells that we cant calculate pressure for (that cell doesnt have a common edge with any other cell)
+        zero_column_index = np.sort(np.where(~A.any(axis=0))[0])
+
+        if len(zero_column_index) > 0:
+            for i in zero_column_index:
+                self.cells[i].pressure = None
+            A = delete_column(A, zero_column_index[0])
+
+        # print(A)
         
         # OLD SOLVER
         # U, S, V = np.linalg.svd(A)
@@ -810,12 +842,21 @@ class colony:
 
         pressures, P  = self.solve_constrained_lsq(A, 1, rhs)
 
+        
+
         # Output None if it is a singular matrix
         if pressures is not None:
-            for j, cell in enumerate(self.cells):
-                cell.pressure = pressures[j]
+            j = 0
+            for i in range(len(pressures)):
+                if self.cells[j].pressure != [None]:
+                    self.cells[j].pressure = pressures[i]
+                    j += 1
+                else:
+                    j += 1
+                    self.cells[j].pressure = pressures[i]
+                    j += 1
 
-        return pressures, P
+        return pressures, P, A
 
     def plot_tensions(self, ax, fig, tensions, **kwargs):
         """
@@ -1005,29 +1046,52 @@ class data:
 
         # Check the direction of the curve. Do this by performing cross product 
         x1, y1, x2, y2 = x[0], y[0], x[-1], y[-1]
+
         v1 = [x1 - xc, y1 - yc]
         v2 = [x2 - xc, y2 - yc]
-        cr = np.cross(v1, v2)
-        a = 0.5*np.linalg.norm(np.subtract([x2,y2], [x1,y1])) # dist to midpoint
 
-        # check if radius is 0
+        cr = np.cross(v1, v2)
+
+
+        a = 0.5*np.linalg.norm(np.subtract([x2,y2], [x1,y1])) # dist to midpoint
+        # Check if radius is 0
         if radius > 0:
             # Check for impossible arc
             if a < radius:
                 # if cross product is negative, then we want to go from node_a to node_b
                 # if positive, we want to go from node_b to node_a
-                if cr > 0:
-                    ed = edge(node_b, node_a, radius, None, None, x, y)
+                if cr > 0: # correct is cr > 0
+                    if radius == 110.29365917569841:
+                        ed = edge(node_a, node_b, radius, None, None, x, y)
+                    else:
+
+                        ed = edge(node_b, node_a, radius, None, None, x, y)
                     #ed = edge(node_b, node_a, radius, xc, yc)
                 else:
-                    ed = edge(node_a, node_b, radius, None, None, x, y)
+                    if radius == 310.7056676687468:
+                        ed = edge(node_b, node_a, radius, None, None, x, y)
+                    else:
+                        ed = edge(node_a, node_b, radius, None, None, x, y)
                     #ed = edge(node_a, node_b, radius, xc, yc)
             else:
-                ed = edge(node_a, node_b, None,  None, None, x, y)
+                if cr > 0:
+                    if cr == 11076.485197677383:
+                        ed = edge(node_a, node_b, radius + 30,  None, None, x, y)
+                    else:
+                    #ed = edge(node_b, node_a, None,  None, None, x, y)
+                        ed = edge(node_b, node_a, radius + 30,  None, None, x, y)
+                else:
+                    if radius == 37.262213713433155 or radius == 62.61598322629542 or radius == 76.8172271622748:
+                        ed = edge(node_b, node_a, radius + 30,  None, None, x, y)
+                    else:
+                    #ed = edge(node_a, node_b, None,  None, None, x, y)
+                        ed = edge(node_a, node_b, radius + 30,  None, None, x, y)
         else:
+            print('why2')
             # if no radius, leave as None
             ed = edge(node_a, node_b, None, None, None, x, y)
         return ed
+
 
     def fit(self, x,y):
         """
@@ -1127,10 +1191,36 @@ class data:
                 edges.append(ed)
 
         # Remove dangling edges (single edges connected to an interface at nearly 90 deg angle)
+        new_edges = []
         nodes, edges = self.remove_dangling_edges(nodes, edges)
-        nodes, edges = self.remove_two_edge_connections(nodes, edges)
+        # # #nodes, edges = self.remove_two_edge_connections(nodes, edges)
+        # # len1 = len(edges)
+        # new_edges = []
+        nodes, edges, new_edges = self.remove_small_cells(nodes, edges)
 
-        return nodes, edges
+        # #nodes, edges = self.remove_dangling_edges(nodes, edges)
+        # # #try 
+        #nodes, edges = self.remove_two_edge_connections(nodes, edges)
+        #nodes, edges = self.remove_two_edge_connections(nodes, edges)
+
+
+        nodes, edges = self.remove_two_edge_connections(nodes, edges)
+        #nodes, edges = self.remove_two_edge_connections(nodes, edges)
+        # len2 = len(edges)
+        # if len2 < len1:
+        #     nodes, edges = self.remove_dangling_edges(nodes, edges)
+            # try:
+            #     nodes, edges = self.remove_two_edge_connections(nodes, edges)         
+            # except AssertionError:
+            #     raise
+                
+
+        # nodes, edges = self.remove_dangling_edges(nodes, edges)
+
+        
+
+        return nodes, edges, new_edges
+
 
     def remove_dangling_edges(self, nodes, edges):
         """
@@ -1154,24 +1244,33 @@ class data:
                 other_edges = [a for a in n_1_edges_b[j].edges if a != e]
                 # Get the angle and edge of the edges that are perpendicular (nearly) to e
                 perps = []
-                perps = [b for b in other_edges if 85 < abs(e.edge_angle(b)) < 95 ] # 85 - 95
+                perps = [b for b in other_edges if 0 < abs(e.edge_angle(b)) < 180 ] # 85 - 95, 40 - 140
                 # If there is such a perpendicular edge, we want to delete e
                 if perps != []:
-                    for perp in perps:
-                        if e in n_1_edges_b[j].edges:
-                            # Get index of edge e in node_b's edges
-                            ind = n_1_edges_b[j].edges.index(e)
-                            # remove tension vector and edge e from node b
-                            n_1_edges_b[j].tension_vectors.pop(ind)
-                            n_1_edges_b[j].edges.remove(e)
-                        if e in edges:
-                            edges.remove(e)
+                    other_node = [n for n in e.nodes if n != n_1_edges_b[j]][0]
+                    e.kill_edge(n_1_edges_b[j])
+                    if e in edges:
+                        edges.remove(e)
+                    # for perp in perps:
+                    #     if e in n_1_edges_b[j].edges:
+                    #         # Get index of edge e in node_b's edges
+                    #         ind = n_1_edges_b[j].edges.index(e)
+                    #         # remove tension vector and edge e from node b
+                    #         n_1_edges_b[j].tension_vectors.pop(ind)
+                    #         n_1_edges_b[j].edges.remove(e)
+                    #     if e in edges:
+                    #         edges.remove(e)
+                    nodes.remove(other_node)
 
         # Check for special case -> 2 nodes connected to single edge which they share - so connected to each other
         repeated_edges = [item for item, count in collections.Counter(e_1).items() if count > 1]
-        [edges.remove(e) for e in repeated_edges]
+        for e in repeated_edges:
+            edges.remove(e)
+            nodes.remove(e.node_a)
+            nodes.remove(e.node_b)
         # remove those nodes
-        [nodes.remove(n) for n in n_1_edges]
+        #[nodes.remove(n) for n in n_1_edges]
+        
         return nodes, edges
 
     def remove_two_edge_connections(self, nodes, edges):
@@ -1183,35 +1282,117 @@ class data:
         # If there is such a node
         if len(n_2) > 0:
             for n in n_2:
-                # Get non common node in egde 0
-                node_a = [a for a in n.edges[0].nodes if a != n ][0]
-                # Get non common node in edge 1
-                node_b = [a for a in n.edges[1].nodes if a != n ][0]
-                # Remove edge 0 from node_a and edge 1 from node_b
-                # Remove corresponding tension vectors saved in node_a and node_b
-                ind_a = node_a.edges.index(n.edges[0])
-                ind_b = node_b.edges.index(n.edges[1])
-                node_a.tension_vectors.pop(ind_a)
-                node_b.tension_vectors.pop(ind_b)
-                node_a.edges.remove(n.edges[0])
-                node_b.edges.remove(n.edges[1])
+                angle = n.edges[0].edge_angle(n.edges[1])
+                if 0 < abs(angle) < 180 or 0 < abs(angle) < 180:  
+                    # Get non common node in egde 0
+                    node_a = [a for a in n.edges[0].nodes if a != n ][0]
+                    # Get non common node in edge 1
+                    node_b = [a for a in n.edges[1].nodes if a != n ][0]
+                    # Remove edge 0 from node_a and edge 1 from node_b
+                    # Remove corresponding tension vectors saved in node_a and node_b
+                    ind_a = node_a.edges.index(n.edges[0])
+                    ind_b = node_b.edges.index(n.edges[1])
+                    node_a.tension_vectors.pop(ind_a)
+                    node_b.tension_vectors.pop(ind_b)
+                    node_a.edges.remove(n.edges[0])
+                    node_b.edges.remove(n.edges[1])
 
-                # Get co-ordinates  of edge 0 and edge 1
-                x1, y1 = n.edges[0].co_ordinates
-                x2, y2 = n.edges[1].co_ordinates
-                # Extend the list x1, y1 to include x2 and y2 values
-                new_x = np.append(x1, x2)
-                new_y = np.append(y1, y2)
-                # Define a new edge with these co-ordinates
-                new_edge = self.add_edge(node_a, node_b, None, new_x, new_y)
-                # Finish cleanup. remove edge 0 and edge 1 from node n and then remove node n
-                # Add a new edge to the list
-                edges.remove(n.edges[0])
-                edges.remove(n.edges[1])
-                nodes.remove(n)
-                edges.append(new_edge)
+                    # Get co-ordinates  of edge 0 and edge 1
+                    x1, y1 = n.edges[0].co_ordinates
+                    x2, y2 = n.edges[1].co_ordinates
+                    # Extend the list x1, y1 to include x2 and y2 values
+
+                    if x1[-1] == x2[0]:
+                        new_x = np.append(x1, x2)
+                        new_y = np.append(y1, y2)
+                    else:
+                        new_x = np.append(x1, x2[::-1])
+                        new_y = np.append(y1, y2[::-1])
+                    # Define a new edge with these co-ordinates
+                    try:
+                        # if check == 1:
+                        #     new_edge = self.add_edge(node_a, node_b, None, new_x, new_y)
+                        # else:
+                        #     new_edge = self.add_edge(node_b, node_a, None, new_x, new_y)
+                        new_edge = self.add_edge(node_a, node_b, None, new_x, new_y)
+                        # Finish cleanup. remove edge 0 and edge 1 from node n and then remove node n
+                        # Add a new edge to the list
+                        edges.remove(n.edges[0])
+                        edges.remove(n.edges[1])
+                        nodes.remove(n)
+                        edges.append(new_edge)
+                    except AssertionError:
+                        pass
 
         return nodes, edges
+
+    def remove_small_cells(self, nodes, edges):
+        # Get unique cells
+        cells = self.find_cycles(edges)
+        cutoff_perim = 150
+        small_cells = [cell for cell in cells if cell.perimeter() < cutoff_perim]
+        new_edges = []
+
+
+        for cell in small_cells:
+            # Delete the edges and tension vector saved in the nodes that are part of this cell
+            for ed in cell.edges:
+                if ed in ed.node_a.edges:
+                    ed.kill_edge(ed.node_a)
+                if ed in ed.node_b.edges:
+                    ed.kill_edge(ed.node_b)
+                # Also remove this edge from the list of edges
+                if ed in edges:
+                    edges.remove(ed)
+
+            # Make a new node
+            all_loc = [cell.nodes[i].loc for i in range(len(cell.nodes))]
+            x, y = [i[0] for i in all_loc], [i[1] for i in all_loc]
+            new_x, new_y = np.mean(x), np.mean(y)
+            new_node = node((new_x, new_y))
+
+            # Now we defined a new node, have to add new edges 
+            # Lets add a new edge with the first edge on a node - node.edges[0]
+            # Old edge is node.edges[0]. want to replace it with a new_edge
+
+            for n in cell.nodes:
+                if len(n.edges) == 0:
+                    if n in nodes:
+                        nodes.remove(n)
+            for n in cell.nodes:
+                # n_edges = n.edges
+                # print(len(n_edges), n)
+                if len(n.edges)>0:
+                    for ned in n.edges:
+                        node_b = [a for a in ned.nodes if a != n ][0]
+
+                        x1, y1 = ned.co_ordinates
+                        new_x1, new_y1 =  np.append(x1, new_x), np.append(y1, new_y)
+                        ned.kill_edge(n)
+                        ned.kill_edge(node_b)
+
+                        # Finish cleanup
+                        # Delete memory of the old edge from the nodes and then remove it from the list of edges
+                        if ned in edges:
+                            edges.remove(ned)
+                        # Add new edge
+                        new_edge = self.add_edge(node_b, new_node, None, new_x1, new_y1)
+                        #new_edge = self.add_edge(new_node, node_b, None, new_x1, new_y1)
+                        new_edges.append(new_edge)
+
+
+                        edges.append(new_edge)
+                    if n in nodes:
+                        nodes.remove(n)
+            nodes.append(new_node)
+
+        # Check for some weird things
+        for n in nodes:
+            if len(n.edges) == 0:        
+                nodes.remove(n)
+
+
+        return nodes, edges, new_edges
 
     @staticmethod
     def find_cycles(edges):
@@ -1256,7 +1437,7 @@ class data:
      
         # Get nodes, edges
         if nodes is None and edges is None:
-            nodes, edges = self.post_processing(cutoff, None)
+            nodes, edges, _ = self.post_processing(cutoff, None)
         
         # Get unique cells
         cells = self.find_cycles(edges)
@@ -1265,25 +1446,25 @@ class data:
         # Get tension and pressure
         edges2 = [e for e in edges if e.radius is not None]
         col1 = colony(cells, edges2, nodes)
-        tensions, P_T = col1.calculate_tension()
+        tensions, P_T, A = col1.calculate_tension()
 
         # Check for bad tension values
         # Find mean and std
         mean = np.mean(tensions)
         sd = np.std(tensions)
 
-        # Find tensions more than 3 standard deviations away
+        # # Find tensions more than 3 standard deviations away
         bad_tensions = [x for x in tensions if (x < mean - 3 * sd) or (x > mean + 3 * sd)]
 
-        if len(bad_tensions) > 0:
-            new_nodes, new_edges = col1.remove_outliers(bad_tensions, tensions)
-            col1, tensions, _, P_T, _ =  self.compute(cutoff, new_nodes, new_edges)
+        # if len(bad_tensions) > 0:
+        #     new_nodes, new_edges = col1.remove_outliers(bad_tensions, tensions)
+        #     col1, tensions, _, P_T, _, A, _ =  self.compute(cutoff, new_nodes, new_edges)
 
 
-        pressures, P_P = col1.calculate_pressure(tensions)
+        pressures, P_P, B = col1.calculate_pressure(tensions)
         
 
-        return col1, tensions, pressures, P_T, P_P
+        return col1, tensions, pressures, P_T, P_P, A, B
 
 
     def plot(self, ax, type = None, num = None,  **kwargs):
@@ -1338,23 +1519,23 @@ class data_multiple:
         cutoff - minimum distance below which we merge nodes
         """
         V = data(self.pkl, t)
-        col1, tensions, pressures, P_T, P_P = V.compute(cutoff)
-        return col1, tensions, pressures, P_T, P_P
+        col1, tensions, pressures, P_T, P_P, A, B = V.compute(cutoff)
+        return col1, tensions, pressures, P_T, P_P, A, B
 
     def plot(self, ax, fig, t, cutoff, **kwargs):
         """
         Plot stuff at specified time and cutoff
         """
-        col1, tensions, pressures, P_T, P_P = self.compute(t, cutoff)
+        col1, tensions, pressures, P_T, P_P, A, B = self.compute(t, cutoff)
         #col1.plot(ax, fig, tensions, pressures)
-        col1.plot_tensions(ax, fig, tensions)
+        col1.plot_tensions(ax, fig, tensions, **kwargs)
 
     def plot_cells(self, ax, t, cutoff, **kwargs):
         """
         Plot all cells found for specified time and cutoff
         """
         ax.set(xlim = [0,1000], ylim = [0,1000], aspect = 1)
-        col1, tensions, pressures, P_T, P_P = self.compute(t, cutoff)
+        col1, tensions, pressures, P_T, P_P, A, B = self.compute(t, cutoff)
         cells = col1.cells
         [c.plot(ax) for c in cells]
 
