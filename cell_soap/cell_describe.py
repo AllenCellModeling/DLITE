@@ -11,6 +11,7 @@ from matplotlib import cm
 import os, sys
 import matplotlib.patches as mpatches
 import matplotlib.animation as manimation
+from collections import defaultdict
 import pylab
 import scipy
 #from Dave_cell_find import find_all_cells, cells_on_either_side, trace_cell_cycle
@@ -21,6 +22,8 @@ class node:
         self.loc = loc
         self._edges = []
         self._tension_vectors = []
+        self._label = []
+        self._edge_label = []
     
     # def __str__(self):
     #     return "x:%04i, y:%04i"%tuple(self.loc)
@@ -56,6 +59,26 @@ class node:
     def tension_vectors(self, vector):
         if vector not in self._tension_vectors:
             self._tension_vectors.append(vector)
+
+    @property    
+    def label(self):
+        """
+        Give a label to a node so we can track it over time
+        """
+        return self._label
+
+    @label.setter
+    def label(self, label):
+        self._label = label
+
+    @property
+    def edge_label(self):
+        return self._edge_label
+    
+    @edge_label.setter
+    def edge_label(self, edge_label):
+        if edge_label not in self._edge_label:
+            self._edge_label.append(edge_label)
 
     def plot(self, ax, **kwargs):
         ax.plot(self.loc[0], self.loc[1], ".", **kwargs)
@@ -102,6 +125,7 @@ class edge:
 
         self._cells = []
         self._tension = []
+        self._label = []
 
     # def __str__(self):
     #     return "["+"   ->   ".join([str(n) for n in self.nodes])+"]"
@@ -109,8 +133,15 @@ class edge:
     @property
     def co_ordinates(self):
         return self.x_co_ords, self.y_co_ords
-    
 
+    @property
+    def label(self):
+        return self._label
+
+    @label.setter
+    def label(self, label):
+        self._label = label
+    
     @property
     def cells(self):
         return self._cells
@@ -646,6 +677,10 @@ class colony:
             y = np.dot(R1.T, Q) # Let y=R1'.Q using matrix multiplication
             x = linalg.solve(R2, y) # Solve Rx=y 
 
+            # By least squares - gives same result
+            #x = linalg.lstsq(R2, y)
+
+
             # By LU decomposition - Both give same results        
             # L, U = scipy.linalg.lu_factor(P)
             # x = scipy.linalg.lu_solve((L, U), Q)
@@ -656,7 +691,8 @@ class colony:
                 raise
 
 
-        return x[0:N][:,0], P
+        return x[0:N][:,0], P # use this if solved using linalg.solve
+        #return x[0][0:N], P # use this if solved using linalg.lstsq
 
 
 
@@ -954,6 +990,7 @@ class colony:
             y = [n.loc[1] for n in c.nodes]
             plt.fill(x, y, c= cm.jet(c2[j]), alpha = 0.2)
             for e in c.edges:
+                # Plots a filled arc
                 e.plot_fill(ax, color = cm.jet(c2[j]), alpha = 0.2)
 
         sm = plt.cm.ScalarMappable(cmap=cm.jet, norm=plt.Normalize(vmin=-1, vmax=1))
@@ -1079,6 +1116,7 @@ class data:
             if a < radius:
                 # if cross product is negative, then we want to go from node_a to node_b
                 # if positive, we want to go from node_b to node_a
+                # All the cases where i specify a radius are unique cases that i have yet to figure out
                 if cr > 0: # correct is cr > 0
                     if radius == 110.29365917569841:
                         ed = edge(node_a, node_b, radius, None, None, x, y)
@@ -1210,32 +1248,16 @@ class data:
 
         # Remove dangling edges (single edges connected to an interface at nearly 90 deg angle)
         new_edges = []
+        # Below are the next 3 post processing steps
+
+        # Step 1 - remove small stray edges (nodes connected to 1 edge)
         nodes, edges = self.remove_dangling_edges(nodes, edges)
-        # # #nodes, edges = self.remove_two_edge_connections(nodes, edges)
-        # # len1 = len(edges)
-        # new_edges = []
+
+        # Step 2 - remove small cells
         nodes, edges, new_edges = self.remove_small_cells(nodes, edges)
 
-        # #nodes, edges = self.remove_dangling_edges(nodes, edges)
-        # # #try 
+        # Step 3 - remove nodes connected to 2 edges
         nodes, edges = self.remove_two_edge_connections(nodes, edges)
-        #nodes, edges = self.remove_two_edge_connections(nodes, edges)
-
-
-        #nodes, edges = self.remove_two_edge_connections(nodes, edges)
-        #nodes, edges = self.remove_two_edge_connections(nodes, edges)
-        # len2 = len(edges)
-        # if len2 < len1:
-        #     nodes, edges = self.remove_dangling_edges(nodes, edges)
-            # try:
-            #     nodes, edges = self.remove_two_edge_connections(nodes, edges)         
-            # except AssertionError:
-            #     raise
-                
-
-        # nodes, edges = self.remove_dangling_edges(nodes, edges)
-
-        
 
         return nodes, edges, new_edges
 
@@ -1257,7 +1279,7 @@ class data:
 
         for j, e in enumerate(e_1):
             # Check that this edge is really small
-            if e.straight_length < 100:
+            if e.straight_length < 3:
                 # Get all the edges on node_b of the edge e
                 other_edges = [a for a in n_1_edges_b[j].edges if a != e]
                 # Get the angle and edge of the edges that are perpendicular (nearly) to e
@@ -1269,25 +1291,15 @@ class data:
                     e.kill_edge(n_1_edges_b[j])
                     if e in edges:
                         edges.remove(e)
-                    # for perp in perps:
-                    #     if e in n_1_edges_b[j].edges:
-                    #         # Get index of edge e in node_b's edges
-                    #         ind = n_1_edges_b[j].edges.index(e)
-                    #         # remove tension vector and edge e from node b
-                    #         n_1_edges_b[j].tension_vectors.pop(ind)
-                    #         n_1_edges_b[j].edges.remove(e)
-                    #     if e in edges:
-                    #         edges.remove(e)
                     nodes.remove(other_node)
 
         # Check for special case -> 2 nodes connected to single edge which they share - so connected to each other
         repeated_edges = [item for item, count in collections.Counter(e_1).items() if count > 1]
+
         for e in repeated_edges:
             edges.remove(e)
             nodes.remove(e.node_a)
             nodes.remove(e.node_b)
-        # remove those nodes
-        #[nodes.remove(n) for n in n_1_edges]
         
         return nodes, edges
 
@@ -1301,7 +1313,7 @@ class data:
         if len(n_2) > 0:
             for n in n_2:
                 angle = n.edges[0].edge_angle(n.edges[1])
-                if 120 < abs(angle) < 180 or 0 < abs(angle) < 60:  
+                if 0 < abs(angle) < 180 or 0 < abs(angle) < 60:  
                     # Get non common node in egde 0
                     node_a = [a for a in n.edges[0].nodes if a != n ][0]
                     # Get non common node in edge 1
@@ -1328,10 +1340,6 @@ class data:
                         new_y = np.append(y1, y2[::-1])
                     # Define a new edge with these co-ordinates
                     try:
-                        # if check == 1:
-                        #     new_edge = self.add_edge(node_a, node_b, None, new_x, new_y)
-                        # else:
-                        #     new_edge = self.add_edge(node_b, node_a, None, new_x, new_y)
                         new_edge = self.add_edge(node_a, node_b, None, new_x, new_y)
                         # Finish cleanup. remove edge 0 and edge 1 from node n and then remove node n
                         # Add a new edge to the list
@@ -1378,8 +1386,6 @@ class data:
                     if n in nodes:
                         nodes.remove(n)
             for n in cell.nodes:
-                # n_edges = n.edges
-                # print(len(n_edges), n)
                 if len(n.edges)>0:
                     for ned in n.edges:
                         node_b = [a for a in ned.nodes if a != n ][0]
@@ -1397,8 +1403,6 @@ class data:
                         new_edge = self.add_edge(node_b, new_node, None, new_x1, new_y1)
                         #new_edge = self.add_edge(new_node, node_b, None, new_x1, new_y1)
                         new_edges.append(new_edge)
-
-
                         edges.append(new_edge)
                     if n in nodes:
                         nodes.remove(n)
@@ -1408,7 +1412,6 @@ class data:
         for n in nodes:
             if len(n.edges) == 0:        
                 nodes.remove(n)
-
 
         return nodes, edges, new_edges
 
@@ -1478,7 +1481,6 @@ class data:
         #     new_nodes, new_edges = col1.remove_outliers(bad_tensions, tensions)
         #     col1, tensions, _, P_T, _, A, _ =  self.compute(cutoff, new_nodes, new_edges)
 
-
         pressures, P_P, B = col1.calculate_pressure(tensions)
         
 
@@ -1519,6 +1521,194 @@ class data:
             ax.imshow(img, origin = 'lower')
 
         ax.set(xlim = [0, 1000], ylim = [0, 1000], aspect = 1)
+
+class manual_tracing(data):
+    def __init__(self, X, Y):
+        """
+        Manual tracing that outputs an array of X and Y co-ordinates
+        length(X) == number of edges 
+        length(X[0]) == number of co-ordinates on edge 0
+        """
+        self.X = X
+        self.Y = Y
+        self.length = len(self.X)
+
+    def co_ordinates(self, edge_num):
+        return X[edge_num], Y[edge_num]
+
+    def fit_X_Y(self, edge_num):
+        R_2, xc_2, yc_2 = self.fit(self.X[edge_num], self.Y[edge_num])
+        return R_2, xc_2, yc_2
+
+    def cleanup(self,cutoff):
+        """
+        post process the data to merge nodes that are within a distance
+        specified as 'cutoff'. Also calls functions 
+        (1) remove_dangling_edges 
+        (2) remove_two_edge_connections
+        ----------
+        Parameters 
+        ------------
+        cutoff - distance within which we merge nodes
+        num (optional) - Number of branches to consider (default - all of them)
+        """
+
+        nodes, edges = [], []
+
+        for index in range(self.length):
+            # Add 2 nodes at both ends of the branch
+            node_a = node((self.X[index][0], self.Y[index][0]))
+            node_b = node((self.X[index][-1], self.Y[index][-1]))
+        
+            dist_a, dist_b = [], []
+            for n in nodes:
+                # Find distance of all nodes in the list (nodes) from current node_a
+                dist_a.append(np.linalg.norm(np.subtract(n.loc, node_a.loc)))
+
+            if not dist_a:
+                # If dist = [], then nodes was empty -> add node_a to list
+                nodes.append(node_a)
+            else:
+                # If all values in dist are larger than a cutoff, add the node
+                if all(i >= cutoff for i in dist_a):
+                    nodes.append(node_a)  
+                else:
+                    # Find index of minimum distance value. Replace node_a with the node at that point
+                    ind = dist_a.index(min(dist_a))
+                    node_a = nodes[ind]
+
+            # Have to do this separately and not with node_a because
+            # we want to check that distance between node_a and node_b is very small too
+            # So if node_b is so close to node_a that we replace node_b with node_a, have to not add that edge
+            for n in nodes:
+                dist_b.append(np.linalg.norm(np.subtract(n.loc, node_b.loc)))
+
+            if not dist_b:
+                # If dist = [], then nodes was empty -> add node_a to list
+                nodes.append(node_b)
+            else:
+                # If all values in dist are larger than a cutoff, add the node
+                if all(i >= cutoff for i in dist_b):
+                    nodes.append(node_b)  
+                else:
+                    # Find index of minimum distance value. Replace node_a with the node at that point
+                    ind = dist_b.index(min(dist_b))
+                    node_b = nodes[ind]
+
+            if node_a.loc != node_b.loc:
+                ed = self.add_edge(node_a, node_b, None, self.X[index], self.Y[index])
+                edges.append(ed)
+
+        # Remove dangling edges (single edges connected to an interface at nearly 90 deg angle)
+        new_edges = []
+        # Below are the next 3 post processing steps
+
+        # # Step 1 - remove small stray edges (nodes connected to 1 edge)
+        nodes, edges = self.remove_dangling_edges(nodes, edges)
+
+        # # Step 2 - remove small cells
+        # nodes, edges, new_edges = self.remove_small_cells(nodes, edges)
+
+        # # Step 3 - remove nodes connected to 2 edges
+        nodes, edges = self.remove_two_edge_connections(nodes, edges)
+
+        return nodes, edges, new_edges
+
+class manual_tracing_multiple:
+    def __init__(self, names):
+        """
+        Name is of the form 'MAX_20170123_I01_003-Scene-4-P4-split_T0.ome.txt'
+        names = [Name1, Name2...]
+        """
+        self.names = names
+
+    def get_nodes_edges(self, name):
+
+        with open(name,'r') as f:
+            a = [l.split(',') for l in f]
+
+        x,y, X, Y = [],[], [],[]
+
+        for num in a:
+            if len(num) == 2:
+                x.append(int(num[0]))
+                y.append(int(num[1].strip('\n')))
+            if len(num) == 1:
+                X.append(x)
+                Y.append(y)
+                x = []
+                y = []
+        X.append(x)
+        Y.append(y)
+        X.pop(0)
+        Y.pop(0)
+
+        ex = manual_tracing(X, Y)
+        nodes, edges, new = ex.cleanup(14)
+
+        return nodes, edges
+
+    def initial_numbering(self, name0):
+        temp_nodes, _ = self.get_nodes_edges(name0)
+
+        # temp_edges = []
+        old_dictionary = {}
+        for j, node in enumerate(temp_nodes):
+            # number all nodes in list 0 from 0 to N
+            node.label = j
+            sort_edges = sorted(node.edges, key = lambda p: p.straight_length)
+            old_dictionary[node.label] = sort_edges
+
+
+        return temp_nodes, old_dictionary
+
+
+    def track_based_on_prev_t(self, names_prev, names_now, old_nodes = None):
+
+        # Get list of nodes and edges for every time point
+
+        if old_nodes == None:
+            old_nodes, old_dictionary = self.initial_numbering(names_prev)
+
+        now_nodes, now_edges = self.get_nodes_edges(names_now)
+
+        for j, prev_node in enumerate(old_nodes):
+            # Give the same label as the previous node 
+            closest_new_node = min([node for node in now_nodes], key = lambda p: np.linalg.norm(np.subtract(prev_node.loc, p.loc)))
+            closest_new_node.label = j
+
+        count = 100
+        for node in now_nodes:
+            if node.label == []:
+                node.label = count 
+                count += 1
+
+        now_nodes = sorted(now_nodes, key = lambda p: p.label)
+
+
+        repeat_now_edges = []
+        count = 100
+        new_dictionary = {}
+        for node in now_nodes:
+            if node.label < 100:
+                temp_edges = sorted(node.edges, key = lambda p: p.straight_length)
+                new_dictionary[node.label] = temp_edges
+
+        set1 = set(old_dictionary)
+        set2 = set(new_dictionary)
+
+        combined_dict = defaultdict(list)
+
+        for label in set1.intersection(set2):
+            if old_dictionary[label] != [] and new_dictionary[label] != []:
+                combined_dict[label].append(old_dictionary[label])
+                combined_dict[label].append(new_dictionary[label])       
+
+        return now_nodes, new_dictionary, old_nodes, old_dictionary, combined_dict
+
+
+
+
 
 class data_multiple:
     def __init__(self, pkl):
@@ -1601,7 +1791,6 @@ class data_multiple:
 
         os.system("ffmpeg -r "+str(fps)+" -b 1800 -i _tmp%05d.png movie.mp4")
         os.system("rm _tmp*.png")
-
 
 
 
