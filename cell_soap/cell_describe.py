@@ -7,6 +7,7 @@ from scipy import ndimage, optimize
 import numpy.linalg as la
 import collections
 import scipy.linalg as linalg 
+from scipy.optimize import minimize
 from matplotlib import cm
 import os, sys
 import matplotlib.patches as mpatches
@@ -23,7 +24,6 @@ class node:
         self._edges = []
         self._tension_vectors = []
         self._label = []
-        self._edge_label = []
     
     # def __str__(self):
     #     return "x:%04i, y:%04i"%tuple(self.loc)
@@ -71,15 +71,6 @@ class node:
     def label(self, label):
         self._label = label
 
-    @property
-    def edge_label(self):
-        return self._edge_label
-    
-    @edge_label.setter
-    def edge_label(self, edge_label):
-        if edge_label not in self._edge_label:
-            self._edge_label.append(edge_label)
-
     def plot(self, ax, **kwargs):
         ax.plot(self.loc[0], self.loc[1], ".", **kwargs)
 
@@ -125,7 +116,7 @@ class edge:
 
         self._cells = []
         self._tension = []
-        self._label = []
+        self._guess_tension = []
 
     # def __str__(self):
     #     return "["+"   ->   ".join([str(n) for n in self.nodes])+"]"
@@ -133,14 +124,6 @@ class edge:
     @property
     def co_ordinates(self):
         return self.x_co_ords, self.y_co_ords
-
-    @property
-    def label(self):
-        return self._label
-
-    @label.setter
-    def label(self, label):
-        self._label = label
     
     @property
     def cells(self):
@@ -171,6 +154,17 @@ class edge:
         self._tension = tension
 
     @property
+    def guess_tension(self):
+        """
+        Initial guess for tension based on the same edge at a previous time point
+        """
+        return self._guess_tension
+
+    @guess_tension.setter
+    def guess_tension(self, guess_tension):
+        self._guess_tension = guess_tension
+
+    @property
     def straight_length(self):
         """The distance from node A to node B"""
         return np.linalg.norm(np.subtract(self.node_a.loc, self.node_b.loc))
@@ -183,10 +177,10 @@ class edge:
         x2, y2 = point2
         x0, y0 = 0.5*np.subtract(point2, point1)+point1 # midpoint
         a = 0.5*np.linalg.norm(np.subtract(point2, point1)) # dist to midpoint
-       # assert a<radius, "Impossible arc asked for, radius too small"
+        #assert a<radius, "Impossible arc asked for, radius too small"
         if a>radius:
-            self.radius = radius + 60
-            radius = radius + 60
+            self.radius = radius + a - radius + 1
+            radius = radius + a - radius + 1
         b = np.sqrt(radius**2-a**2) # midpoint to circle center
         xc = x0 + (b*(y0-y1))/a # location of circle center
         yc = y0 - (b*(x0-x1))/a
@@ -255,8 +249,7 @@ class edge:
 
     @property
     def nodes(self):
-        return set((self.node_a, self.node_b))
-    
+        return set((self.node_a, self.node_b))    
 
     def edge_angle(self, other_edge):
         """What is the angle between this edge and another edge connected
@@ -525,6 +518,8 @@ class cell:
         self.edges = edges
         self._colony_cell = []
         self._pressure = []
+        self._guess_pressure = []
+        self._label = []
 
         for edge in edges:
             edge.cells = self
@@ -535,17 +530,11 @@ class cell:
     def __str__(self):
         return "{\n "+" ".join([str(e)+"\n" for e in self.edges])+"}"
 
-    def plot(self, ax):
-
-
-        # colors = ['b', 'g', 'r', 'c', 'm', 'y', 'k', 'w']
-        # color = [x for x in colors if colors.index(x) + 2 == len(self.nodes) ]
-        # ''.join(color)
-        # ax.facecolor = color
+    def plot(self, ax, **kwargs):
 
         """Plot the cell on a given axis"""
-        [e.plot(ax) for e in self.edges]
-        [n.plot(ax) for n in self.nodes]
+        [e.plot(ax, **kwargs) for e in self.edges]
+        [n.plot(ax, **kwargs) for n in self.nodes]
 
     @property
     def colony_cell(self):
@@ -565,8 +554,23 @@ class cell:
 
     @pressure.setter
     def pressure(self, pres):
-        if pres not in self._pressure:
-            self._pressure.append(pres)
+        self._pressure = pres
+
+    @property
+    def label(self):
+        return self._label
+    
+    @label.setter
+    def label(self, label):
+        self._label = label
+
+    @property
+    def guess_pressure(self):
+        return self._guess_pressure
+
+    @guess_pressure.setter
+    def guess_pressure(self, guess_pres):
+        self._guess_pressure = guess_pres
 
 
 class colony:
@@ -586,6 +590,7 @@ class colony:
         self.cells = cells
         self.tot_edges = edges 
         self.tot_nodes = nodes
+        self._dictionary = {}
 
         for cell in cells:
             cell.colony_cell = self
@@ -597,19 +602,38 @@ class colony:
         [e.plot(ax) for e in self.cells]
 
     @property
+    def dictionary(self):
+        """
+        Dictionary of the form {node label: edges connected to node label}
+        Note -> these edges match are in an order that matches the order of edges in the 
+        dictionary at the previous time step
+        """
+        return self._dictionary
+    
+    @dictionary.setter
+    def dictionary(self, dic):
+        self._dictionary = dic
+
+    @property
     def edges(self):
+        """
+        Edges is not the total list of edges - that is tot_edges. This gives list of edges that make up cells
+        """
         edges = []
         [edges.append(x) for cell in self.cells for x in cell.edges if x not in edges]
         return edges
 
     @property
     def nodes(self):
+        """
+        Nodes is not the total list of nodes - that is tot_nodes. This gives list of nodes that make up cells
+        """
         nodes = []
         [nodes.append(x) for cell in self.cells for edge in cell.edges for x in edge.nodes if x not in nodes]
         return nodes
 
     @staticmethod
-    def solve_constrained_lsq(A, type, B = None):
+    def solve_constrained_lsq(A, type, B = None, Guess = None):
         """
         Solve constrained least square system PX = Q. 
 
@@ -690,15 +714,21 @@ class colony:
             else:
                 raise
 
-
         return x[0:N][:,0], P # use this if solved using linalg.solve
         #return x[0][0:N], P # use this if solved using linalg.lstsq
 
 
 
-    def calculate_tension(self, nodes = None, edges = None):
+    def make_tension_matrix(self, nodes = None, edges = None):
         """
-        Calculate tension along every edge of the colony (including stray edges)
+        Makes a tension matrix A 
+        A is the coefficient vectors of all the edges coming into a node
+        A is m * n matrix. 
+        m is number of equations, which is 2 * number
+        of nodes that have atleast 3 edges coming into it (2 * because both horizontal
+        and vertical force balance). 
+        n is number of edges. This includes stray edges (not part of a cell). Called
+        by self.tot_edges
         """
         # get the list of nodes and edges in the colony
         #nodes = self.nodes
@@ -751,29 +781,193 @@ class colony:
         A = A.T
         A = np.delete(A, (0), axis=0)
 
-        # # OLD MAIN SOLVER
-        # # decompose matrix A as A = U * diag(S) * V
-        # # S is list of singular values in decreasing order of magnitude.
-        # # If any diagonal element is 0, that means we found a singular value
-        # # look up the column in V.T corresponding to that column in S. This is the solution for X.
-        # # if no diagonal element is 0, that means there is no solution. BUT, its reasonable to assume
-        # # that the value of S of smallest magnitude corresponds to the best fit. 
-        # # Thus, for solution we always pick the last column of V.T
+        return A
 
-        # U, S, V = np.linalg.svd(A)
-        # tensions = V.T[:,-1]
+
+    def calculate_tension(self, nodes = None, edges = None):
+        """
+        Calls a solver to calculate tension. Cellfit paper used 
+        (1) self.solve_constrained_lsq
+        We use 
+        (2) self.scipy_opt_minimize
+        This optimization is slower but allows us to set initial conditions, bounds, constraints
+        """
 
         # Use Solve_constrained_lsq
-        
-        ## MAIN SOLVER
-        tensions, P = self.solve_constrained_lsq(A, 0, None)
 
+        ## MAIN SOLVER
+        # Used in cellfit paper
+        A = self.make_tension_matrix(nodes, edges)
+        #tensions, P = self.solve_constrained_lsq(A, 0, None, Guess)
+
+        # New scipy minimze solver
+        if nodes == None:
+            nodes = self.tot_nodes
+        #edges = self.edges
+        if edges == None:
+            edges = self.tot_edges
+
+        # Try scipy minimize 
+        sol = self.scipy_opt_minimze(edges)
+
+        tensions = sol.x
+
+        # Im setting P = [] because i dont get a P matrix when i do optimization. 
+        # Remember to remove this if we switch back to constrained_lsq
+        P = []
 
         # Add tensions to edge
         for j, edge in enumerate(edges):
             edge.tension = tensions[j]
 
         return tensions, P, A
+
+    def scipy_opt_minimze(self, edges):
+        """
+        Calls minimize function from scipy optimize. 
+        Parameters:
+        ----------------------
+        edges - really either edges (for tension calculation)
+        or cells (for pressure calculation). Just give the solver a list of 
+        variables and it will give a solution
+        """
+
+        bnds = self.make_bounds(edges)
+
+        x0 = self.initial_conditions(edges)
+
+        if type(edges[0]) == edge:
+            if not edges[0].guess_tension:
+                cons = [{'type': 'eq', 'fun':self.equality_constraint_tension}]
+                #sol = minimize(self.objective_function_tension, x0, method = 'SLSQP', bounds = bnds, constraints = cons)
+                sol = minimize(self.objective_function_tension, x0, method = 'SLSQP', constraints = cons)
+            else:
+                sol = minimize(self.objective_function_tension, x0, method = 'SLSQP')
+        else:
+            if not edges[0].guess_pressure:
+                cons = [{'type': 'eq', 'fun':self.equality_constraint_pressure}]
+                #sol = minimize(self.objective_function_pressure, x0, method = 'SLSQP', bounds = bnds, constraints = cons)
+                sol = minimize(self.objective_function_pressure, x0, method = 'SLSQP', constraints = cons)
+            else:
+                sol = minimize(self.objective_function_pressure, x0, method = 'SLSQP')
+        print(sol)
+        print('\n')
+        print('-----------------------------')
+        return sol
+
+    def make_bounds(self, edge_or_cell):
+        """
+        Define bounds based on the initial guess of tension or pressure 
+        Parameters
+        ---------------------
+        edge_or_cell - list of edges or cells (variables)
+        """
+
+        tolerance = 0.5
+        b = []
+
+        for j, e_or_c in enumerate(edge_or_cell):
+            if type(e_or_c) == edge:
+                if not e_or_c.guess_tension:
+                    b.append((-np.inf, np.inf))
+                else:
+                    b.append((e_or_c.guess_tension - tolerance, e_or_c.guess_tension + tolerance))                    
+            else:
+                if not e_or_c.guess_pressure:
+                    b.append((-np.inf, np.inf))
+                else:
+                    b.append((e_or_c.guess_pressure - tolerance, e_or_c.guess_pressure + tolerance))   
+        return tuple(b)
+
+    def initial_conditions(self, edge_or_cell):
+        """
+        Define initial conditions based on previous solution for tension/pressure
+        Parameters 
+        ------------------
+        edge_or_cell - list of edge or cells (variables)
+        """
+
+        I = []
+
+        for j, e_or_c in enumerate(edge_or_cell):
+            if type(e_or_c) == edge:
+                if not e_or_c.guess_tension:
+                    # If no guess, we assign a guess of 1
+                    I.append(1)
+                else:
+                    I.append(e_or_c.guess_tension)
+            else:
+                if not e_or_c.guess_pressure:
+                    # If no guess, we assign 1. 0 giving trivial solution
+                    I.append(1)
+                else:
+                    I.append(e_or_c.guess_pressure)
+        return I
+
+
+    def objective_function_tension(self, x):
+        """
+        Main objective function to be minimzed in the tension calculation 
+        i.e sum(row^2) for every row in tension matrix A
+        """
+
+        A = self.make_tension_matrix()
+
+        num_of_eqns = len(A[:,0])
+        objective = 0
+        for j, row in enumerate(A[:,:]):
+            row_obj = 0
+            for k, element in enumerate(row):
+                if element != 0:
+                    row_obj = row_obj + element*x[k]
+            objective = objective + (row_obj)**2 
+
+        return objective 
+
+    def objective_function_pressure(self, x):
+        """
+        Main objective function to be minimzed in the pressure calculation 
+        i.e sum((row - rhs)^2). We need rhs here because in the pressure case
+        rhs is not 0.
+        """
+
+        A, rhs = self.make_pressure_matrix()
+
+        num_of_eqns = len(A[:,0])
+        objective = 0
+        for j, row in enumerate(A[:,:]):
+            row_obj = 0
+            for k, element in enumerate(row):
+                if element != 0:
+                    row_obj = row_obj + element*x[k]
+            objective = objective + (row_obj - rhs[j])**2 
+
+        return objective 
+
+    def equality_constraint_tension(self, x):
+        """
+        Assigns equality constraint - i.e mean of tensions = 1
+        """
+        
+        A = self.make_tension_matrix()
+
+        num_of_edges = len(A[0,:])
+        constraint = 0
+        for i in range(num_of_edges):
+            constraint = constraint + x[i]
+        return constraint - num_of_edges    
+
+    def equality_constraint_pressure(self, x):
+        """
+        Assigns equality constraint - i.e mean of pressures = 0
+        """      
+        A, _ = self.make_pressure_matrix()
+
+        num_of_cells = len(A[0,:])
+        constraint = 0
+        for i in range(num_of_cells):
+            constraint = constraint + x[i]
+        return constraint
 
     def remove_outliers(self, bad_tensions, tensions):
         """
@@ -803,24 +997,20 @@ class colony:
 
         return nodes, edges 
 
-
-
-    def calculate_pressure(self, tensions):
+    def make_pressure_matrix(self):
         """
-        Calculate pressure using calculated tensions and edge curvatures (radii). 
-        Pressure is unique to every cell
+        Make pressure matrix A and rhs matrix (AX = rhs)
+        A is m * n matrix
+        m is number of equations - equals number of edges that have 2 cells on either side
+        n is number of cells 
+        rhs is m * 1 matrix - each element is tension/radius
         """
-        # get the list of nodes and edges in the colony
-        #nodes = self.nodes
-        #edges = self.edges
 
         A = np.zeros((len(self.cells), 1))
 
         # of the form tension/radius
         rhs = []
         #rhs = np.zeros((len(edges), 1))
-
-
         for c in self.cells:
 
 
@@ -861,7 +1051,6 @@ class colony:
                             rhs.append(0)
 
                     
-
         A = A.T
         A = np.delete(A, (0), axis=0)
         rhs = np.array(rhs)
@@ -883,32 +1072,28 @@ class colony:
                 self.cells[i].pressure = None
             A = delete_column(A, zero_column_index[0])
 
-        # print(A)
+        return A, rhs
+
+
+    def calculate_pressure(self):
+        """
+        Calculate pressure using calculated tensions and edge curvatures (radii). 
+        Pressure is unique to every cell
+        """
+        A, rhs = self.make_pressure_matrix()
+
+        # Old solver
+        #pressures, P  = self.solve_constrained_lsq(A, 1, rhs)
+
+        # New solver 
+        cells = self.cells
+        sol = self.scipy_opt_minimze(cells)
+        pressures = sol.x
+        P = []
+
+        for j, cell in enumerate(self.cells):
+            cell.pressure = pressures[j]
         
-        # OLD SOLVER
-        # U, S, V = np.linalg.svd(A)
-        # pressures = V.T[:,-1]
-        #x = la.lstsq(A,rhs, rcond = None)
-        #pressures = x[0]
-
-        # pressures = np.dot(np.linalg.pinv(A), rhs)
-
-        pressures, P  = self.solve_constrained_lsq(A, 1, rhs)
-
-        
-
-        # Output None if it is a singular matrix
-        if pressures is not None:
-            j = 0
-            for i in range(len(pressures)):
-                if self.cells[j].pressure != [None]:
-                    self.cells[j].pressure = pressures[i]
-                    j += 1
-                else:
-                    j += 1
-                    self.cells[j].pressure = pressures[i]
-                    j += 1
-
         return pressures, P, A
 
     def plot_tensions(self, ax, fig, tensions, **kwargs):
@@ -928,9 +1113,9 @@ class colony:
         # # Plot tensions
 
         for j, an_edge in enumerate(edges):
-            an_edge.plot(ax, ec = cm.jet(c1[j]), lw = 3)
+            an_edge.plot(ax, ec = cm.viridis(c1[j]), lw = 3)
 
-        sm = plt.cm.ScalarMappable(cmap=cm.jet, norm=plt.Normalize(vmin=0, vmax=1))
+        sm = plt.cm.ScalarMappable(cmap=cm.viridis, norm=plt.Normalize(vmin=0, vmax=1))
         # fake up the array of the scalar mappable. 
         sm._A = []
 
@@ -954,11 +1139,11 @@ class colony:
         for j, c in enumerate(self.cells):
             x = [n.loc[0] for n in c.nodes]
             y = [n.loc[1] for n in c.nodes]
-            plt.fill(x, y, c= cm.jet(c2[j]), alpha = 0.2)
+            plt.fill(x, y, c= cm.viridis(c2[j]), alpha = 0.2)
             for e in c.edges:
-                e.plot_fill(ax, color = cm.jet(c2[j]), alpha = 0.2)
+                e.plot_fill(ax, color = cm.viridis(c2[j]), alpha = 0.2)
 
-        sm = plt.cm.ScalarMappable(cmap=cm.jet, norm=plt.Normalize(vmin=-1, vmax=1))
+        sm = plt.cm.ScalarMappable(cmap=cm.viridis, norm=plt.Normalize(vmin=-1, vmax=1))
         # fake up the array of the scalar mappable. 
         sm._A = []
 
@@ -988,12 +1173,12 @@ class colony:
         for j, c in enumerate(self.cells):
             x = [n.loc[0] for n in c.nodes]
             y = [n.loc[1] for n in c.nodes]
-            plt.fill(x, y, c= cm.jet(c2[j]), alpha = 0.2)
+            plt.fill(x, y, c= cm.viridis(c2[j]), alpha = 0.2)
             for e in c.edges:
                 # Plots a filled arc
-                e.plot_fill(ax, color = cm.jet(c2[j]), alpha = 0.2)
+                e.plot_fill(ax, color = cm.viridis(c2[j]), alpha = 0.2)
 
-        sm = plt.cm.ScalarMappable(cmap=cm.jet, norm=plt.Normalize(vmin=-1, vmax=1))
+        sm = plt.cm.ScalarMappable(cmap=cm.viridis, norm=plt.Normalize(vmin=-1, vmax=1))
         # fake up the array of the scalar mappable. 
         sm._A = []
 
@@ -1004,9 +1189,9 @@ class colony:
         # # Plot tensions
 
         for j, an_edge in enumerate(edges):
-            an_edge.plot(ax, ec = cm.jet(c1[j]), lw = 3)
+            an_edge.plot(ax, ec = cm.viridis(c1[j]), lw = 3)
 
-        sm = plt.cm.ScalarMappable(cmap=cm.jet, norm=plt.Normalize(vmin=0, vmax=1))
+        sm = plt.cm.ScalarMappable(cmap=cm.viridis, norm=plt.Normalize(vmin=0, vmax=1))
         # fake up the array of the scalar mappable. 
         sm._A = []
 
@@ -1109,6 +1294,8 @@ class data:
 
 
         a = 0.5*np.linalg.norm(np.subtract([x2,y2], [x1,y1])) # dist to midpoint
+
+
         # Check if radius is 0
         if radius > 0:
 
@@ -1131,18 +1318,20 @@ class data:
                         ed = edge(node_a, node_b, radius, None, None, x, y)
                     #ed = edge(node_a, node_b, radius, xc, yc)
             else:
+
+                rnd = a - radius + 5              
                 if cr > 0:
-                    if cr == 11076.485197677383:
-                        ed = edge(node_a, node_b, radius + 30,  None, None, x, y)
+                    if cr == 11076.485197677383 or cr == 202.12988846862288:
+                        ed = edge(node_a, node_b, radius + rnd,  None, None, x, y)
                     else:
                     #ed = edge(node_b, node_a, None,  None, None, x, y)
-                        ed = edge(node_b, node_a, radius + 30,  None, None, x, y)
+                        ed = edge(node_b, node_a, radius + rnd,  None, None, x, y)
                 else:
                     if radius == 37.262213713433155 or radius == 62.61598322629542 or radius == 76.8172271622748 or radius == 42.1132395657534:
-                        ed = edge(node_b, node_a, radius + 30,  None, None, x, y)
+                        ed = edge(node_b, node_a, radius + rnd,  None, None, x, y)
                     else:
                     #ed = edge(node_a, node_b, None,  None, None, x, y)
-                        ed = edge(node_a, node_b, radius + 30,  None, None, x, y)
+                        ed = edge(node_a, node_b, radius + rnd,  None, None, x, y)
         else:
             # if no radius, leave as None
             ed = edge(node_a, node_b, None, None, None, x, y)
@@ -1481,7 +1670,7 @@ class data:
         #     new_nodes, new_edges = col1.remove_outliers(bad_tensions, tensions)
         #     col1, tensions, _, P_T, _, A, _ =  self.compute(cutoff, new_nodes, new_edges)
 
-        pressures, P_P, B = col1.calculate_pressure(tensions)
+        pressures, P_P, B = col1.calculate_pressure()
         
 
         return col1, tensions, pressures, P_T, P_P, A, B
@@ -1527,16 +1716,24 @@ class manual_tracing(data):
         """
         Manual tracing that outputs an array of X and Y co-ordinates
         length(X) == number of edges 
-        length(X[0]) == number of co-ordinates on edge 0
+        length(X[0]) == X co-ordinates on edge 0
+        length(Y[0]) == Y co-ordinates on edge 0
         """
         self.X = X
         self.Y = Y
         self.length = len(self.X)
 
     def co_ordinates(self, edge_num):
+        """
+        Get X and Y co-ordinates for specified edge number
+        """
         return X[edge_num], Y[edge_num]
 
     def fit_X_Y(self, edge_num):
+        """
+        Fit a circular arc to an edge.
+        Call self.fit - .fit is a function in the data class
+        """
         R_2, xc_2, yc_2 = self.fit(self.X[edge_num], self.Y[edge_num])
         return R_2, xc_2, yc_2
 
@@ -1615,16 +1812,31 @@ class manual_tracing(data):
         return nodes, edges, new_edges
 
 class manual_tracing_multiple:
-    def __init__(self, names):
+    def __init__(self, numbers):
         """
-        Name is of the form 'MAX_20170123_I01_003-Scene-4-P4-split_T0.ome.txt'
-        names = [Name1, Name2...]
+        Class to handle colonies at mutliple time points that have been manually traced out
+        using NeuronJ
+        Numbers is a list containing start and stop index e.g [2,4]
+        of the files labeled as -
+        'MAX_20170123_I01_003-Scene-4-P4-split_T0.ome.txt'
+                                                ^ this number changes - 0,1,2,3,..30
         """
+        self.name_first = 'MAX_20170123_I01_003-Scene-4-P4-split_T'
+        self.name_last = '.ome.txt'
+        names = [] 
+        for i in range(numbers[0],numbers[-1],1):
+            names.append(self.name_first+ str(i)+ self.name_last)
+        names.append(self.name_first+ str(numbers[-1])+ self.name_last)
         self.names = names
 
-    def get_nodes_edges(self, name):
+    def get_X_Y_data(self, number):
+        """
+        Retrieve X and Y co-ordinates of a colony at a time point specified by number
+        """
 
-        with open(name,'r') as f:
+        file = self.name_first + str(number) + self.name_last
+
+        with open(file,'r') as f:
             a = [l.split(',') for l in f]
 
         x,y, X, Y = [],[], [],[]
@@ -1643,71 +1855,327 @@ class manual_tracing_multiple:
         X.pop(0)
         Y.pop(0)
 
+        return X, Y
+
+
+    def get_nodes_edges_cells(self, number):
+        """
+        Get nodes, edges and cells at time point number
+        these nodes, edges and cells do not have any labels
+        """
+
+        X, Y = self.get_X_Y_data(number)
+
         ex = manual_tracing(X, Y)
-        nodes, edges, new = ex.cleanup(14)
 
-        return nodes, edges
+        cutoff= 14 if  0 <= number <= 3 \
+                or 5 <= number <= 7 \
+                or 10 <= number <= 11 \
+                or number == 13 or number == 17 else \
+                16 if 14 <= number <= 15 \
+                or 18 <= number <= 30 else \
+                17 if 8 <= number <= 9 or number == 16 \
+                or number == 16 else \
+                20 if number == 4 else 12
+        print('File %d used a Cutoff value ------> %d' % (number, cutoff))
 
-    def initial_numbering(self, name0):
-        temp_nodes, _ = self.get_nodes_edges(name0)
+        nodes, edges, new = ex.cleanup(cutoff)
 
-        # temp_edges = []
-        old_dictionary = {}
+        cells = ex.find_cycles(edges)
+
+        return nodes, edges, cells
+
+    def initial_numbering(self, number0):
+        """
+        Assign random labels to nodes and cells in the colony specified by number0
+        Returns labeled nodes and cells. 
+        Also returns a dictionary defined as {node.label: edges connected to node label, vectors of edges connected to node label}
+        Also returns the edge list (not labeled)
+        """
+
+        # Get the list of nodes for name0
+        temp_nodes, edges, initial_cells = self.get_nodes_edges_cells(number0)
+
+        def func(p, common_node):
+            # This function outputs the absolute angle (0 to 360) that the edge makes with the horizontal
+            if p.node_a == common_node:
+                this_vec = np.subtract(p.node_b.loc, p.node_a.loc)
+            else:
+                this_vec = np.subtract(p.node_a.loc, p.node_b.loc)
+            angle = np.arctan2(this_vec[1], this_vec[0])
+            #angle = np.rad2deg((2*np.pi + angle)%(2*np.pi))
+            return this_vec
+
+        # Create an empty dictionary
+        old_dictionary = defaultdict(list)
         for j, node in enumerate(temp_nodes):
-            # number all nodes in list 0 from 0 to N
+            # Give every node a label -> in this case we're arbitrarily givig labels as we loop through
             node.label = j
-            sort_edges = sorted(node.edges, key = lambda p: p.straight_length)
-            old_dictionary[node.label] = sort_edges
+
+            # We do 2 sorting steps for the edges in the node.edges list ->
+            # (1) sort by length of the edge
+            # (2) sort by the angle the edge makes with the horizontal
+            sort_edges = node.edges
+            #sort_edges = sorted(sort_edges, key = lambda p: func(p, node))
+            this_vec = [func(p, node) for p in sort_edges]
+            #sort_edges = sorted(sort_edges, key = lambda p: p.straight_length)
+            
+            # Add these sorted edges to a dictionary associated with the node label
+            old_dictionary[node.label].append(sort_edges)
+            old_dictionary[node.label].append(this_vec)
+
+        for k, cell in enumerate(initial_cells):
+            cell.label = k
+
+        return temp_nodes, old_dictionary, initial_cells, edges
 
 
-        return temp_nodes, old_dictionary
-
-
-    def track_based_on_prev_t(self, names_prev, names_now, old_nodes = None):
+    def track_timestep(self, old_colony, old_dictionary, number_now):
+        """
+        We want to output a dictionary that contains a list of edges in number_now that is the 
+        same (almost) as the edges in old_colony
+        -----------
+        Parameters
+        -----------
+        old_colony - colony instance for the previous time step
+        old_dictionary - dictionary for the colony instance in old_colony {node.label: edges, vectors}
+        number_now - number of current time point
+        """
 
         # Get list of nodes and edges for every time point
+        old_nodes = old_colony.tot_nodes
+        old_edges = old_colony.tot_edges
+        old_cells = old_colony.cells
 
-        if old_nodes == None:
-            old_nodes, old_dictionary = self.initial_numbering(names_prev)
+        # Get list of nodes and edges for names_now
+        # No labelling
+        now_nodes, now_edges, now_cells = self.get_nodes_edges_cells(number_now)
 
-        now_nodes, now_edges = self.get_nodes_edges(names_now)
-
+        # Find the node in now_nodes that is closest to a node in old_nodes and give same label
         for j, prev_node in enumerate(old_nodes):
             # Give the same label as the previous node 
             closest_new_node = min([node for node in now_nodes], key = lambda p: np.linalg.norm(np.subtract(prev_node.loc, p.loc)))
-            closest_new_node.label = j
+            closest_new_node.label = prev_node.label
 
+        # Check for any node labels that are empty and assign a 100+ number
         count = 100
         for node in now_nodes:
             if node.label == []:
                 node.label = count 
                 count += 1
 
+        # Sort now_nodes by label
         now_nodes = sorted(now_nodes, key = lambda p: p.label)
 
+        def func(p, common_node):
+            # This function outputs the absolute angle (0 to 360) that the edge makes with the horizontal
+            if p.node_a == common_node:
+                this_vec = np.subtract(p.node_b.loc, p.node_a.loc)
+            else:
+                this_vec = np.subtract(p.node_a.loc, p.node_b.loc)
+            angle = np.arctan2(this_vec[1], this_vec[0])
+            #return np.rad2deg((2*np.pi + angle)%(2*np.pi))
+            return this_vec
 
-        repeat_now_edges = []
-        count = 100
-        new_dictionary = {}
+        def py_ang(v1, v2):
+            """ Returns the angle in radians between vectors 'v1' and 'v2'    """
+            cosang = np.dot(v1, v2)
+            sinang = la.norm(np.cross(v1, v2))
+            return np.rad2deg(np.arctan2(sinang, cosang))
+
+        # Make a new dictionary for the now_nodes list
+        new_dictionary = defaultdict(list)
         for node in now_nodes:
             if node.label < 100:
-                temp_edges = sorted(node.edges, key = lambda p: p.straight_length)
-                new_dictionary[node.label] = temp_edges
+                # old_edges = old_dictionary[node.label][0]
+                old_angles = old_dictionary[node.label][1]
+                temp_edges = []
+                new_vec = [func(p, node) for p in node.edges]
+                if len(old_angles) == len(node.edges):               
+                    for old_e in old_angles:
+                        v1_v2_angs = [py_ang(old_e, nw) for nw in new_vec]
+                        min_ang = min(v1_v2_angs)
+                        for ed in node.edges:
+                            vec = func(ed, node)
+                            if py_ang(old_e, vec) == min_ang:
+                                closest_edge = ed
+                                temp_edges.append(closest_edge)
+
+                #temp_edges = sorted(temp_edges, key = lambda p: p.straight_length)
+                new_vecs = [func(p, node) for p in temp_edges]
+                new_dictionary[node.label].append(temp_edges)
+                new_dictionary[node.label].append(new_vecs)
 
         set1 = set(old_dictionary)
         set2 = set(new_dictionary)
 
         combined_dict = defaultdict(list)
-
+        # Find the labels that are common between the 2 lists and return a dictionary of the form 
+        # {label, old_edges, new_edges}
         for label in set1.intersection(set2):
             if old_dictionary[label] != [] and new_dictionary[label] != []:
-                combined_dict[label].append(old_dictionary[label])
-                combined_dict[label].append(new_dictionary[label])       
+                if len(old_dictionary[label][0]) == len(new_dictionary[label][0]):
+                    combined_dict[label].append(old_dictionary[label][0])
+                    combined_dict[label].append(new_dictionary[label][0])
 
-        return now_nodes, new_dictionary, old_nodes, old_dictionary, combined_dict
+        now_cells = self.label_cells(now_nodes, old_cells, now_cells)
 
 
+        # Define a colony 
+        edges2 = [e for e in now_edges if e.radius is not None]
+        now_nodes, now_cells, edges2 = self.assign_intial_guesses(now_nodes, combined_dict, now_cells, old_cells, edges2)
+        new_colony = colony(now_cells, edges2, now_nodes)
 
+        return new_colony, new_dictionary
+
+    def label_cells(self, now_nodes, old_cells, now_cells):
+        """
+        Now_nodes is the list of nodes at the current time step
+        These nodes have labels based on previous time steps
+        old_cells - cells from prev time step
+        now_cells - cells in current time step
+        """
+        for j, cell in enumerate(old_cells):
+            nodes = cell.nodes
+            now_cell_nodes = []
+            for node in nodes:
+                match_now_node = [n for n in now_nodes if n.label == node.label]
+                if match_now_node != []:
+                    now_cell_nodes.append(match_now_node[0])
+            if len(cell.nodes) == len(now_cell_nodes):
+                for c in now_cells:
+                    if set(now_cell_nodes) == set(c.nodes):
+                        c.label = cell.label
+
+        return now_cells
+
+    def assign_intial_guesses(self, now_nodes, combined_dict, now_cells, old_cells, edges2):
+        """
+        Process -
+        (1) Call track_timestep - this assigns a generic labeling of nodes and cells to
+        number_old (by calling initial_numbering) and also retrieves a dictionary relating
+        each labelled node to its connected edge vectors. It then assigns labels 
+        to nodes, edges and cells in number_now based on this older timestep. 
+        Summary
+        This function gives you labelled nodes and cells for number_now and number_old (edges saved in dictionary - combined_dict)
+        (2) Assign 'guess tension/pressure' (for number_now) based on the 'true tension/pressure'
+        (for number_old) by matching labels
+        """
+
+        for cell in now_cells:
+            if cell.label != []:
+                match_old_cell = [old for old in old_cells if old.label == cell.label][0]
+                cell.guess_pressure = match_old_cell.pressure
+        
+
+        for k,v in combined_dict.items():
+            # v[0] is list of old edges and v[1] is list of matching new edges
+            for old, new in zip(v[0], v[1]):
+                match_edge = [e for e in edges2 if e == new][0]
+                match_edge.guess_tension = old.tension
+
+        # Note - right now edges2 not changing at all. Left it here so that if we want to add labels to edges2, can do it here
+
+        return now_nodes, now_cells, edges2
+
+    def first_computation(self, number_first):
+        """
+        Main first computation
+        Retuns a colony at number_first
+        Parameters
+        -------------
+        number_first - number specifying first time step
+        """
+
+        colonies = {}
+
+        nodes, dictionary, cells, edges = self.initial_numbering(number_first)
+
+        edges2 = [e for e in edges if e.radius is not None]
+        name = str(number_first)
+        colonies[name] = colony(cells, edges2, nodes)
+
+        tensions, P_T, A = colonies[name].calculate_tension()
+        pressures, P_P, B = colonies[name].calculate_pressure()
+
+        return colonies, dictionary
+
+    def computation_based_on_prev(self, numbers, colonies = None, index = None, old_dictionary = None):
+        """
+        Recursive loop that cycles through all the time steps
+        Steps -
+        (1) Call self.first_computation() - returns first colony with generic labeling
+        (2) Call self.track_timestep() - returns new colony that used info in the old colony to assign some initial guesses
+        for tensions and pressures. saved in edge.guess_tension and cell.guess_pressure
+        (3) Calculate tension and pressure on the new colony
+        (4) Call this function again. Keep doing this till we reach the max number
+        (5) Return colonies
+        """
+
+        if colonies == None:
+            colonies, old_dictionary = self.first_computation(numbers[0])
+            colonies[str(numbers[0])].dictionary = old_dictionary
+            index = 0
+
+        colonies[str(numbers[index + 1])], new_dictionary = self.track_timestep(colonies[str(numbers[index])], old_dictionary, index + 1)
+        colonies[str(numbers[index + 1])].dictionary = new_dictionary
+        tensions, P_T, A = colonies[str(numbers[index+1])].calculate_tension()
+        pressures, P_P, B = colonies[str(numbers[index+1])].calculate_pressure()
+
+        index = index + 1
+
+        if index < len(numbers) - 1:
+            colonies = self.computation_based_on_prev(numbers, colonies, index, new_dictionary)
+
+        return colonies
+
+    def plot_single_nodes(ax, label, colonies):
+        """
+        Plot the edges connected to a node specified by label
+        Parameters
+        ---------------
+        label - label of node that is present in all colonies specified by colonies
+        colonies - dictionary of colonies
+        """
+        all_cindices = len(colonies)
+        ax.set(xlim = [0,1000], ylim = [0,1000], aspect = 1)
+        dic = colonies[str(cindex)].dictionary
+        for cindex in all_cindices:
+
+            # Get all nodes, all edges
+            nodes = colonies[str(cindex)].tot_nodes
+            all_edges = colonies[str(cindex)].tot_edges
+
+            # Get tensions
+            tensions = [e.tension for n in nodes for e in n.edges if n.label == label]
+
+            def norm(tensions):
+                return (tensions - min(tensions)) / float(max(tensions) - min(tensions))
+
+            c1 = norm(tensions)
+
+            # Get edges on node label
+            edges = [e for n in nodes for e in n.edges if n.label == label]
+
+            for j, an_edge in enumerate(edges):
+                an_edge.plot(ax, ec = cm.viridis(c1[j]), lw = 3)
+
+            sm = plt.cm.ScalarMappable(cmap=cm.viridis, norm=plt.Normalize(vmin=0, vmax=1))
+            # fake up the array of the scalar mappable. 
+            sm._A = []
+
+            # Plot all edges 
+            for edd in all_edges:
+                edd.plot(ax, lw = 0.2)
+            cbaxes = fig.add_axes([0.13, 0.1, 0.03, 0.8])
+            cl = plt.colorbar(sm, cax = cbaxes)
+            cl.set_label('Normalized tension', fontsize = 13, labelpad = -60)            
+            pylab.savefig('_tmp%05d.png'%cindex, dpi=200)
+            plt.cla()
+            plt.clf()
+            plt.close()
+            fig, ax = plt.subplots(1,1, figsize = (8, 5))
+            ax.set(xlim = [0,1000], ylim = [0,1000], aspect = 1)
 
 
 class data_multiple:
