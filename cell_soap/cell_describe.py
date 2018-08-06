@@ -591,6 +591,8 @@ class colony:
         self.tot_edges = edges 
         self.tot_nodes = nodes
         self._dictionary = {}
+        self._tension_matrix = []
+        self._pressure_matrix = []
 
         for cell in cells:
             cell.colony_cell = self
@@ -601,6 +603,22 @@ class colony:
         """
         [e.plot(ax) for e in self.cells]
 
+    @property
+    def tension_matrix(self):
+        return self._tension_matrix
+
+    @tension_matrix.setter
+    def tension_matrix(self, A):
+        self._tension_matrix = A
+
+    @property
+    def pressure_matrix(self):
+        return self._pressure_matrix
+
+    @pressure_matrix.setter
+    def pressure_matrix(self, B):
+        self._pressure_matrix = B
+    
     @property
     def dictionary(self):
         """
@@ -835,21 +853,29 @@ class colony:
         bnds = self.make_bounds(edges)
 
         x0 = self.initial_conditions(edges)
+        #x0 = np.zeros(len(edges))
 
         if type(edges[0]) == edge:
+            cons = [{'type': 'eq', 'fun':self.equality_constraint_tension}]
             if not edges[0].guess_tension:
-                cons = [{'type': 'eq', 'fun':self.equality_constraint_tension}]
+
                 #sol = minimize(self.objective_function_tension, x0, method = 'SLSQP', bounds = bnds, constraints = cons)
-                sol = minimize(self.objective_function_tension, x0, method = 'SLSQP', constraints = cons)
+
+                # This is correct, use this
+                #sol = minimize(self.objective_function_tension, x0, method = 'SLSQP', constraints = cons)
+                sol = minimize(self.objective_function_tension, x0, method = 'Nelder-Mead')
             else:
-                sol = minimize(self.objective_function_tension, x0, method = 'SLSQP')
+                sol = minimize(self.objective_function_tension, x0, method = 'Nelder-Mead')
         else:
+            cons = [{'type': 'eq', 'fun':self.equality_constraint_pressure}]
             if not edges[0].guess_pressure:
-                cons = [{'type': 'eq', 'fun':self.equality_constraint_pressure}]
                 #sol = minimize(self.objective_function_pressure, x0, method = 'SLSQP', bounds = bnds, constraints = cons)
-                sol = minimize(self.objective_function_pressure, x0, method = 'SLSQP', constraints = cons)
+
+                # This is correct, use this
+                # sol = minimize(self.objective_function_pressure, x0, method = 'SLSQP', constraints = cons)
+                sol = minimize(self.objective_function_pressure, x0, method = 'Nelder-Mead')
             else:
-                sol = minimize(self.objective_function_pressure, x0, method = 'SLSQP')
+                sol = minimize(self.objective_function_pressure, x0, method = 'Nelder-Mead')
         print(sol)
         print('\n')
         print('-----------------------------')
@@ -863,19 +889,22 @@ class colony:
         edge_or_cell - list of edges or cells (variables)
         """
 
-        tolerance = 0.5
+
         b = []
+        tol_perc = 0.5
 
         for j, e_or_c in enumerate(edge_or_cell):
             if type(e_or_c) == edge:
                 if not e_or_c.guess_tension:
                     b.append((-np.inf, np.inf))
                 else:
+                    tolerance = e_or_c.guess_tension * tol_perc
                     b.append((e_or_c.guess_tension - tolerance, e_or_c.guess_tension + tolerance))                    
             else:
                 if not e_or_c.guess_pressure:
                     b.append((-np.inf, np.inf))
                 else:
+                    tolerance = e_or_c.guess_pressure * tol_perc
                     b.append((e_or_c.guess_pressure - tolerance, e_or_c.guess_pressure + tolerance))   
         return tuple(b)
 
@@ -893,13 +922,13 @@ class colony:
             if type(e_or_c) == edge:
                 if not e_or_c.guess_tension:
                     # If no guess, we assign a guess of 1
-                    I.append(1)
+                    I.append(0.002)
                 else:
                     I.append(e_or_c.guess_tension)
             else:
                 if not e_or_c.guess_pressure:
                     # If no guess, we assign 1. 0 giving trivial solution
-                    I.append(1)
+                    I.append(0)
                 else:
                     I.append(e_or_c.guess_pressure)
         return I
@@ -1096,19 +1125,22 @@ class colony:
         
         return pressures, P, A
 
-    def plot_tensions(self, ax, fig, tensions, **kwargs):
+    def plot_tensions(self, ax, fig, tensions, min_ten = None, max_ten = None, **kwargs):
         """
         Plot normalized tensions (min, width) with colorbar
         """
 
         edges = self.tot_edges
 
-        ax.set(xlim = [0,1000], ylim = [0,1000], aspect = 1)
+        ax.set(xlim = [0,1030], ylim = [0,1030], aspect = 1)
 
-        def norm(tensions):
-            return (tensions - min(tensions)) / float(max(tensions) - min(tensions))
+        def norm(tensions, min_ten = None, max_ten = None):
+            if min_ten == None and max_ten == None:
+                return (tensions - min(tensions)) / float(max(tensions) - min(tensions))
+            else:
+                return (tensions - min_ten) / float(max_ten - min_ten)
 
-        c1 = norm(tensions)
+        c1 = norm(tensions, min_ten, max_ten)
 
         # # Plot tensions
 
@@ -1123,16 +1155,22 @@ class colony:
         cl = plt.colorbar(sm, cax = cbaxes)
         cl.set_label('Normalized tension', fontsize = 13, labelpad = -60)
 
-    def plot_pressures(self, ax, fig, pressures, **kwargs):
+    def plot_pressures(self, ax, fig, pressures, min_pres = None, max_pres = None, **kwargs):
         """
         Plot normalized pressures (mean, std) with colorbar 
         """
-        ax.set(xlim = [0,1000], ylim = [0,1000], aspect = 1)
+        ax.set(xlim = [0,1030], ylim = [0,1030], aspect = 1)
 
-        def norm2(pressures):
-            return (pressures - np.mean(pressures))/float(np.std(pressures))
+        def norm2(pressures, min_pres = None, max_pres = None):
+            if min_pres == None and max_pres == None:
+                return (pressures - min(pressures)) / float(max(pressures) - min(pressures))
+            else:
+                return (pressures - min_pres) / float(max_pres - min_pres)
 
-        c2 = norm2(pressures)
+        # def norm2(pressures):
+        #     return (pressures - np.mean(pressures))/float(np.std(pressures))
+
+        c2 = norm2(pressures, min_pres, max_pres)
 
         # Plot pressures
 
@@ -1152,22 +1190,28 @@ class colony:
         cl.set_label('Normalized pressure', fontsize = 13, labelpad = 10)
 
 
-    def plot(self, ax, fig, tensions, pressures, **kwargs):
+    def plot(self, ax, fig, tensions, pressures, min_ten = None, max_ten = None, min_pres = None, max_pres = None, **kwargs):
         """
         Plot both tensions and pressures on a single axes
         """
         edges = self.tot_edges
         nodes = self.nodes
-        ax.set(xlim = [0,1000], ylim = [0,1000], aspect = 1)
+        ax.set(xlim = [0,1030], ylim = [0,1030], aspect = 1)
 
-        def norm(tensions):
-            return (tensions - min(tensions)) / float(max(tensions) - min(tensions))
+        def norm(tensions, min_ten = None, max_ten = None):
+            if min_ten == None and max_ten == None:
+                return (tensions - min(tensions)) / float(max(tensions) - min(tensions))
+            else:
+                return (tensions - min_ten) / float(max_ten - min_ten)
 
-        def norm2(pressures):
-            return (pressures - np.mean(pressures))/float(np.std(pressures))
+        def norm2(pressures, min_pres = None, max_pres = None):
+            if min_pres == None and max_pres == None:
+                return (pressures - min(pressures)) / float(max(pressures) - min(pressures))
+            else:
+                return (pressures - min_pres) / float(max_pres - min_pres)
 
-        c1 = norm(tensions)
-        c2 = norm2(pressures)
+        c1 = norm(tensions, min_ten, max_ten)
+        c2 = norm2(pressures, min_pres, max_pres)
         # Plot pressures
 
         for j, c in enumerate(self.cells):
@@ -1942,6 +1986,23 @@ class manual_tracing_multiple:
         number_now - number of current time point
         """
 
+        def func(p, common_node):
+            # This function outputs the absolute angle (0 to 360) that the edge makes with the horizontal
+            if p.node_a == common_node:
+                this_vec = np.subtract(p.node_b.loc, p.node_a.loc)
+            else:
+                this_vec = np.subtract(p.node_a.loc, p.node_b.loc)
+            angle = np.arctan2(this_vec[1], this_vec[0])
+            #return np.rad2deg((2*np.pi + angle)%(2*np.pi))
+            return this_vec
+
+        def py_ang(v1, v2):
+            """ Returns the angle in degrees between vectors 'v1' and 'v2'    """
+            cosang = np.dot(v1, v2)
+            sinang = la.norm(np.cross(v1, v2))
+            return np.rad2deg(np.arctan2(sinang, cosang))
+
+
         # Get list of nodes and edges for every time point
         old_nodes = old_colony.tot_nodes
         old_edges = old_colony.tot_edges
@@ -1955,7 +2016,14 @@ class manual_tracing_multiple:
         for j, prev_node in enumerate(old_nodes):
             # Give the same label as the previous node 
             closest_new_node = min([node for node in now_nodes], key = lambda p: np.linalg.norm(np.subtract(prev_node.loc, p.loc)))
-            closest_new_node.label = prev_node.label
+
+            # Check that the edge vectors on this node are similar to the edge vectors on the prev node
+            if len(closest_new_node.edges) == 1:
+                # Want to check that angles are similar
+                if py_ang(closest_new_node.tension_vectors[0], prev_node.tension_vectors[0]) < 15:
+                    closest_new_node.label = prev_node.label
+            else:
+                closest_new_node.label = prev_node.label
 
         # Check for any node labels that are empty and assign a 100+ number
         count = 100
@@ -1967,21 +2035,6 @@ class manual_tracing_multiple:
         # Sort now_nodes by label
         now_nodes = sorted(now_nodes, key = lambda p: p.label)
 
-        def func(p, common_node):
-            # This function outputs the absolute angle (0 to 360) that the edge makes with the horizontal
-            if p.node_a == common_node:
-                this_vec = np.subtract(p.node_b.loc, p.node_a.loc)
-            else:
-                this_vec = np.subtract(p.node_a.loc, p.node_b.loc)
-            angle = np.arctan2(this_vec[1], this_vec[0])
-            #return np.rad2deg((2*np.pi + angle)%(2*np.pi))
-            return this_vec
-
-        def py_ang(v1, v2):
-            """ Returns the angle in radians between vectors 'v1' and 'v2'    """
-            cosang = np.dot(v1, v2)
-            sinang = la.norm(np.cross(v1, v2))
-            return np.rad2deg(np.arctan2(sinang, cosang))
 
         # Make a new dictionary for the now_nodes list
         new_dictionary = defaultdict(list)
@@ -2039,14 +2092,16 @@ class manual_tracing_multiple:
             nodes = cell.nodes
             now_cell_nodes = []
             for node in nodes:
-                match_now_node = [n for n in now_nodes if n.label == node.label]
+                match_now_node = [n for n in now_nodes if n.label == node.label]                
                 if match_now_node != []:
                     now_cell_nodes.append(match_now_node[0])
-            if len(cell.nodes) == len(now_cell_nodes):
-                for c in now_cells:
-                    if set(now_cell_nodes) == set(c.nodes):
-                        c.label = cell.label
 
+            if -4 < len(cell.nodes) - len(now_cell_nodes) < 4:
+                # This means we found a matching label node for every node in cell
+                labels = [n.label for n in nodes]
+                match_cell = [c for c in now_cells if len(set([n.label for n in c.nodes]).intersection(set(labels))) > 3 ]
+                if match_cell != []:                  
+                    match_cell[0].label = cell.label
         return now_cells
 
     def assign_intial_guesses(self, now_nodes, combined_dict, now_cells, old_cells, edges2):
@@ -2098,6 +2153,9 @@ class manual_tracing_multiple:
         tensions, P_T, A = colonies[name].calculate_tension()
         pressures, P_P, B = colonies[name].calculate_pressure()
 
+        colonies[name].tension_matrix = A
+        colonies[name].pressure_matrix = B
+
         return colonies, dictionary
 
     def computation_based_on_prev(self, numbers, colonies = None, index = None, old_dictionary = None):
@@ -2117,10 +2175,14 @@ class manual_tracing_multiple:
             colonies[str(numbers[0])].dictionary = old_dictionary
             index = 0
 
-        colonies[str(numbers[index + 1])], new_dictionary = self.track_timestep(colonies[str(numbers[index])], old_dictionary, index + 1)
+        colonies[str(numbers[index + 1])], new_dictionary = self.track_timestep(colonies[str(numbers[index])], old_dictionary, numbers[index + 1])
         colonies[str(numbers[index + 1])].dictionary = new_dictionary
         tensions, P_T, A = colonies[str(numbers[index+1])].calculate_tension()
         pressures, P_P, B = colonies[str(numbers[index+1])].calculate_pressure()
+
+        # Save tension and pressure matrix
+        colonies[str(numbers[index+1])].tension_matrix = A
+        colonies[str(numbers[index+1])].pressure_matrix = B
 
         index = index + 1
 
@@ -2129,7 +2191,21 @@ class manual_tracing_multiple:
 
         return colonies
 
-    def plot_single_nodes(ax, label, colonies):
+    def check_repeat_labels(self, colonies, max_num):
+        """
+        Find node labels that are present in a specified number of colonies
+        """
+        testin = []
+        for t, v in colonies.items():
+            index = str(t)
+            if int(t) < max_num:
+                testin.append(colonies[index].dictionary)
+        res = testin.pop()
+        for d in testin:
+            res = res & d.keys()
+        return res 
+
+    def plot_single_nodes(self, fig, ax, label, colonies, max_num):
         """
         Plot the edges connected to a node specified by label
         Parameters
@@ -2137,45 +2213,186 @@ class manual_tracing_multiple:
         label - label of node that is present in all colonies specified by colonies
         colonies - dictionary of colonies
         """
-        all_cindices = len(colonies)
-        ax.set(xlim = [0,1000], ylim = [0,1000], aspect = 1)
-        dic = colonies[str(cindex)].dictionary
-        for cindex in all_cindices:
+        ax.set(xlim = [0,1030], ylim = [0,1030], aspect = 1)
 
+        min_t, max_t, _, _ = self.get_min_max(colonies, label)
+        
+        for cindex, v in colonies.items():
             # Get all nodes, all edges
-            nodes = colonies[str(cindex)].tot_nodes
-            all_edges = colonies[str(cindex)].tot_edges
+            if int(cindex) < max_num:
+                nodes = colonies[str(cindex)].tot_nodes
+                all_edges = colonies[str(cindex)].tot_edges
 
-            # Get tensions
-            tensions = [e.tension for n in nodes for e in n.edges if n.label == label]
+                # Get tensions
+                tensions = [e.tension for n in nodes for e in n.edges if n.label == label]
+                all_tensions = [e.tension for e in all_edges]
 
-            def norm(tensions):
-                return (tensions - min(tensions)) / float(max(tensions) - min(tensions))
+                def norm(tensions, min_t = None, max_t = None):
+                    return (tensions - min_t) / float(max_t - min_t)
 
-            c1 = norm(tensions)
+                c1 = norm(tensions, min_t, max_t)
 
-            # Get edges on node label
-            edges = [e for n in nodes for e in n.edges if n.label == label]
+                # Get edges on node label
+                edges = [e for n in nodes for e in n.edges if n.label == label]
 
-            for j, an_edge in enumerate(edges):
-                an_edge.plot(ax, ec = cm.viridis(c1[j]), lw = 3)
+                for j, an_edge in enumerate(edges):
+                    an_edge.plot(ax, ec = cm.viridis(c1[j]), lw = 3)
 
-            sm = plt.cm.ScalarMappable(cmap=cm.viridis, norm=plt.Normalize(vmin=0, vmax=1))
-            # fake up the array of the scalar mappable. 
-            sm._A = []
+                sm = plt.cm.ScalarMappable(cmap=cm.viridis, norm=plt.Normalize(vmin=0, vmax=1))
+                # fake up the array of the scalar mappable. 
+                sm._A = []
 
-            # Plot all edges 
-            for edd in all_edges:
-                edd.plot(ax, lw = 0.2)
-            cbaxes = fig.add_axes([0.13, 0.1, 0.03, 0.8])
-            cl = plt.colorbar(sm, cax = cbaxes)
-            cl.set_label('Normalized tension', fontsize = 13, labelpad = -60)            
-            pylab.savefig('_tmp%05d.png'%cindex, dpi=200)
+                # Plot all edges 
+                for edd in all_edges:
+                    edd.plot(ax, lw = 0.2)
+                cbaxes = fig.add_axes([0.13, 0.1, 0.03, 0.8])
+                cl = plt.colorbar(sm, cax = cbaxes)
+                cl.set_label('Normalized tension', fontsize = 13, labelpad = -60)            
+                pylab.savefig('_tmp%05d.png'%int(cindex), dpi=200)
+                plt.cla()
+                plt.clf()
+                plt.close()
+                fig, ax = plt.subplots(1,1, figsize = (8, 5))
+                ax.set(xlim = [0,1030], ylim = [0,1030], aspect = 1)
+
+        fps = 1
+        os.system("rm movie_single_node.mp4")
+
+        os.system("ffmpeg -r "+str(fps)+" -b 1800 -i _tmp%05d.png movie_single_node.mp4")
+        os.system("rm _tmp*.png")
+
+        plt.cla()
+        plt.clf()
+        plt.close()
+
+
+    def plot_tensions(self, fig, ax, colonies):
+        """
+        Make a tension movie over the colonies
+        """
+        max_num = len(colonies)
+
+        min_ten, max_ten, _, _ = self.get_min_max(colonies)
+        #min_ten, max_ten = None, None
+
+        for t, v in colonies.items():
+            index = str(t)
+            t= int(t)
+            nodes = colonies[index].tot_nodes
+            edges = colonies[index].tot_edges
+            tensions = [e.tension for e in edges]
+            colonies[index].plot_tensions(ax, fig, tensions, min_ten, max_ten)
+            #pylab.savefig('_tmp0000{0}.png'.format(t), dpi=200)
+            pylab.savefig('_tmp%05d.png'%t, dpi=200)
             plt.cla()
             plt.clf()
             plt.close()
             fig, ax = plt.subplots(1,1, figsize = (8, 5))
-            ax.set(xlim = [0,1000], ylim = [0,1000], aspect = 1)
+
+        fps = 1
+        os.system("rm movie_tension.mp4")
+
+        os.system("ffmpeg -r "+str(fps)+" -b 1800 -i _tmp%05d.png movie_tension.mp4")
+        os.system("rm _tmp*.png")
+
+        plt.cla()
+        plt.clf()
+        plt.close()
+
+    def get_min_max(self, colonies, label = None):
+
+        max_num = len(colonies)
+
+        min_ten, max_ten, min_pres, max_pres = None, None, None, None
+
+        for t, v in colonies.items():
+            index = str(t)
+            t= int(t)
+            cells = colonies[index].cells
+            edges = colonies[index].tot_edges
+            nodes = colonies[index].tot_nodes
+            if label != None:
+                edges = [e for n in nodes for e in n.edges if n.label == label]
+            min_ten_temp = min([e.tension for e in edges])
+            max_ten_temp = max([e.tension for e in edges])
+            min_ten = min_ten_temp if min_ten == None or min_ten_temp < min_ten else min_ten
+            max_ten = max_ten_temp if max_ten == None or max_ten_temp > max_ten else max_ten
+
+            min_pres_temp = min([e.pressure for e in cells])
+            max_pres_temp = max([e.pressure for e in cells])
+            min_pres = min_pres_temp if min_pres == None or min_pres_temp < min_pres else min_pres
+            max_pres = max_pres_temp if max_pres == None or max_pres_temp > max_pres else max_pres
+
+        return min_ten, max_ten, min_pres, max_pres
+
+    def plot_pressures(self, fig, ax, colonies):
+        """
+        Make a pressure movie over colonies
+        """
+
+        max_num = len(colonies)
+
+        _, _, min_pres, max_pres = self.get_min_max(colonies)
+        #min_pres, max_pres = None, None
+
+        for t, v in colonies.items():
+            index = str(t)
+            t= int(t)
+            cells = colonies[index].cells
+            pressures = [e.pressure for e in cells]
+            colonies[index].plot_pressures(ax, fig, pressures, min_pres, max_pres)
+            [e.plot(ax) for e in colonies[index].edges]
+            #pylab.savefig('_tmp0000{0}.png'.format(t), dpi=200)
+            pylab.savefig('_tmp%05d.png'%t, dpi=200)
+            plt.cla()
+            plt.clf()
+            plt.close()
+            fig, ax = plt.subplots(1,1, figsize = (8, 5))
+
+        fps = 1
+        os.system("rm movie_pressure.mp4")
+
+        os.system("ffmpeg -r "+str(fps)+" -b 1800 -i _tmp%05d.png movie_pressure.mp4")
+        os.system("rm _tmp*.png")
+
+        plt.cla()
+        plt.clf()
+        plt.close()
+
+    def plot_both_tension_pressure(self, fig, ax, colonies):
+        """
+        Make a pressure movie over colonies
+        """
+        max_num = len(colonies)
+
+        min_ten, max_ten, min_pres, max_pres = self.get_min_max(colonies)
+        #min_ten, max_ten, min_pres, max_pres = None, None, None, None
+
+
+        for t, v in colonies.items():
+            index = str(t)
+            t=int(t)
+            cells = colonies[index].cells
+            pressures = [e.pressure for e in cells]
+            edges = colonies[index].tot_edges
+            tensions = [e.tension for e in edges]
+            colonies[index].plot(ax, fig, tensions, pressures, min_ten, max_ten, min_pres, max_pres)
+            #pylab.savefig('_tmp0000{0}.png'.format(t), dpi=200)
+            pylab.savefig('_tmp%05d.png'%t, dpi=200)
+            plt.cla()
+            plt.clf()
+            plt.close()
+            fig, ax = plt.subplots(1,1, figsize = (8, 5))
+
+        fps = 1
+        os.system("rm movie_ten_pres.mp4")
+
+        os.system("ffmpeg -r "+str(fps)+" -b 1800 -i _tmp%05d.png movie_ten_pres.mp4")
+        os.system("rm _tmp*.png")
+
+        plt.cla()
+        plt.clf()
+        plt.close()
 
 
 class data_multiple:
