@@ -802,7 +802,7 @@ class colony:
         return A
 
 
-    def calculate_tension(self, nodes = None, edges = None):
+    def calculate_tension(self, nodes = None, edges = None, **kwargs):
         """
         Calls a solver to calculate tension. Cellfit paper used 
         (1) self.solve_constrained_lsq
@@ -826,7 +826,7 @@ class colony:
             edges = self.tot_edges
 
         # Try scipy minimize 
-        sol = self.scipy_opt_minimze(edges)
+        sol = self.scipy_opt_minimze(edges, **kwargs)
 
         tensions = sol.x
 
@@ -840,7 +840,7 @@ class colony:
 
         return tensions, P, A
 
-    def scipy_opt_minimze(self, edges):
+    def scipy_opt_minimze(self, edges, **kwargs):
         """
         Calls minimize function from scipy optimize. 
         Parameters:
@@ -853,30 +853,37 @@ class colony:
         bnds = self.make_bounds(edges)
 
         x0 = self.initial_conditions(edges)
-        #x0 = np.zeros(len(edges))
+        
 
         if type(edges[0]) == edge:
             cons = [{'type': 'eq', 'fun':self.equality_constraint_tension}]
+            # x0 = np.ones(len(edges))*0.002
             if not edges[0].guess_tension:
 
                 #sol = minimize(self.objective_function_tension, x0, method = 'SLSQP', bounds = bnds, constraints = cons)
 
                 # This is correct, use this
                 #sol = minimize(self.objective_function_tension, x0, method = 'SLSQP', constraints = cons)
-                sol = minimize(self.objective_function_tension, x0, method = 'Nelder-Mead')
+                sol = minimize(self.objective_function_tension, x0, method = 'Nelder-Mead', options = {**kwargs})
             else:
-                sol = minimize(self.objective_function_tension, x0, method = 'Nelder-Mead')
+                sol = minimize(self.objective_function_tension, x0, method = 'Nelder-Mead', options = {**kwargs})
         else:
             cons = [{'type': 'eq', 'fun':self.equality_constraint_pressure}]
+            # x0 = np.zeros(len(edges))
             if not edges[0].guess_pressure:
                 #sol = minimize(self.objective_function_pressure, x0, method = 'SLSQP', bounds = bnds, constraints = cons)
 
                 # This is correct, use this
                 # sol = minimize(self.objective_function_pressure, x0, method = 'SLSQP', constraints = cons)
-                sol = minimize(self.objective_function_pressure, x0, method = 'Nelder-Mead')
+                sol = minimize(self.objective_function_pressure, x0, method = 'Nelder-Mead', options = {**kwargs})
             else:
-                sol = minimize(self.objective_function_pressure, x0, method = 'Nelder-Mead')
-        print(sol)
+                sol = minimize(self.objective_function_pressure, x0, method = 'Nelder-Mead', options = {**kwargs})
+        # print(sol)
+        print('Success', sol.success)
+        print('Function value', sol.fun)
+        print('Function evaluations', sol.nfev)
+        print('Number of iterations', sol.nit)
+        print('Solution', sol.x)
         print('\n')
         print('-----------------------------')
         return sol
@@ -921,17 +928,46 @@ class colony:
         for j, e_or_c in enumerate(edge_or_cell):
             if type(e_or_c) == edge:
                 if not e_or_c.guess_tension:
-                    # If no guess, we assign a guess of 1
-                    I.append(0.002)
+                    # If no guess, we assign guess based on surrounding edge tension guesses
+                    node_a, node_b = e_or_c.node_a, e_or_c.node_b
+                    tensions_a = [e.guess_tension for e in node_a.edges if e.guess_tension != []]
+                    tensions_b = [e.guess_tension for e in node_b.edges if e.guess_tension != []]
+                    guess = np.mean(tensions_a) if tensions_a != [] else 0
+                    guess = (guess + np.mean(tensions_b))/2 if tensions_b != [] else guess
+                    [I.append(guess) if guess != 0 else I.append(0.002)]
                 else:
                     I.append(e_or_c.guess_tension)
             else:
                 if not e_or_c.guess_pressure:
-                    # If no guess, we assign 1. 0 giving trivial solution
-                    I.append(0)
+                    adj_press = self.get_adjacent_pressures(e_or_c)
+                    guess = np.mean(adj_press) if adj_press != [] else 0
+                    [I.append(guess) if guess != 0 else I.append(0)]
+
+                    #testing
+                    if any(I) != 0:
+                        mn = np.mean(I)
+                        for j, a in enumerate(I):
+                            if a == 0:
+                                I[j] = mn
                 else:
-                    I.append(e_or_c.guess_pressure)
+                    if e_or_c.guess_pressure != 0:
+                        I.append(e_or_c.guess_pressure)
+                    else:
+                        adj_press = self.get_adjacent_pressures(e_or_c)
+                        guess = np.mean(adj_press) if adj_press != [] else 0
+                        [I.append(guess) if guess != 0 else I.append(1e-5)]
+
         return I
+
+    def get_adjacent_pressures(self, e_or_c):
+        adj_press = []
+        for ee in e_or_c.edges:
+            adj_cell = [c for c in ee.cells if c != e_or_c]
+            if adj_cell != []:
+                if adj_cell[0].guess_pressure != []:
+                    adj_press.append(adj_cell[0].guess_pressure)
+        return adj_press
+
 
 
     def objective_function_tension(self, x):
@@ -1104,7 +1140,7 @@ class colony:
         return A, rhs
 
 
-    def calculate_pressure(self):
+    def calculate_pressure(self, **kwargs):
         """
         Calculate pressure using calculated tensions and edge curvatures (radii). 
         Pressure is unique to every cell
@@ -1116,7 +1152,7 @@ class colony:
 
         # New solver 
         cells = self.cells
-        sol = self.scipy_opt_minimze(cells)
+        sol = self.scipy_opt_minimze(cells, **kwargs)
         pressures = sol.x
         P = []
 
@@ -2002,6 +2038,22 @@ class manual_tracing_multiple:
             sinang = la.norm(np.cross(v1, v2))
             return np.rad2deg(np.arctan2(sinang, cosang))
 
+        # def get_new_edges(old_dictionary, node)
+        #     old_angles = old_dictionary[node.label][1]
+        #     temp_edges = []
+        #     new_vec = [func(p, node) for p in node.edges]             
+        #     for old_e in old_angles:
+        #         v1_v2_angs = [py_ang(old_e, nw) for nw in new_vec]
+        #         min_ang = min(v1_v2_angs)
+        #         if min_ang > 20:                    
+        #             for ed in node.edges:
+        #                 vec = func(ed, node)
+        #                 if py_ang(old_e, vec) == min_ang:
+        #                     new_edge = ed
+        #                     return new_edge
+        #         else:
+        #             return []
+
 
         # Get list of nodes and edges for every time point
         old_nodes = old_colony.tot_nodes
@@ -2100,8 +2152,10 @@ class manual_tracing_multiple:
                 # This means we found a matching label node for every node in cell
                 labels = [n.label for n in nodes]
                 match_cell = [c for c in now_cells if len(set([n.label for n in c.nodes]).intersection(set(labels))) > 3 ]
-                if match_cell != []:                  
+                if match_cell != []:
                     match_cell[0].label = cell.label
+                    # if match_cell[0].perimeter() - cell.perimeter() < 20:                  
+                        # match_cell[0].label = cell.label
         return now_cells
 
     def assign_intial_guesses(self, now_nodes, combined_dict, now_cells, old_cells, edges2):
@@ -2133,7 +2187,7 @@ class manual_tracing_multiple:
 
         return now_nodes, now_cells, edges2
 
-    def first_computation(self, number_first):
+    def first_computation(self, number_first, **kwargs):
         """
         Main first computation
         Retuns a colony at number_first
@@ -2150,15 +2204,15 @@ class manual_tracing_multiple:
         name = str(number_first)
         colonies[name] = colony(cells, edges2, nodes)
 
-        tensions, P_T, A = colonies[name].calculate_tension()
-        pressures, P_P, B = colonies[name].calculate_pressure()
+        tensions, P_T, A = colonies[name].calculate_tension(**kwargs)
+        pressures, P_P, B = colonies[name].calculate_pressure(**kwargs)
 
         colonies[name].tension_matrix = A
         colonies[name].pressure_matrix = B
 
         return colonies, dictionary
 
-    def computation_based_on_prev(self, numbers, colonies = None, index = None, old_dictionary = None):
+    def computation_based_on_prev(self, numbers, colonies = None, index = None, old_dictionary = None, **kwargs):
         """
         Recursive loop that cycles through all the time steps
         Steps -
@@ -2171,14 +2225,14 @@ class manual_tracing_multiple:
         """
 
         if colonies == None:
-            colonies, old_dictionary = self.first_computation(numbers[0])
+            colonies, old_dictionary = self.first_computation(numbers[0], **kwargs)
             colonies[str(numbers[0])].dictionary = old_dictionary
             index = 0
 
         colonies[str(numbers[index + 1])], new_dictionary = self.track_timestep(colonies[str(numbers[index])], old_dictionary, numbers[index + 1])
         colonies[str(numbers[index + 1])].dictionary = new_dictionary
-        tensions, P_T, A = colonies[str(numbers[index+1])].calculate_tension()
-        pressures, P_P, B = colonies[str(numbers[index+1])].calculate_pressure()
+        tensions, P_T, A = colonies[str(numbers[index+1])].calculate_tension(**kwargs)
+        pressures, P_P, B = colonies[str(numbers[index+1])].calculate_pressure(**kwargs)
 
         # Save tension and pressure matrix
         colonies[str(numbers[index+1])].tension_matrix = A
@@ -2187,7 +2241,7 @@ class manual_tracing_multiple:
         index = index + 1
 
         if index < len(numbers) - 1:
-            colonies = self.computation_based_on_prev(numbers, colonies, index, new_dictionary)
+            colonies = self.computation_based_on_prev(numbers, colonies, index, new_dictionary, **kwargs)
 
         return colonies
 
@@ -2205,6 +2259,22 @@ class manual_tracing_multiple:
             res = res & d.keys()
         return res 
 
+    def all_tensions_and_radius_and_pressures(self, colonies):
+        """
+        Return all unique edge tensions, edge radii and cell pressures in all colonies
+        """
+        all_tensions = []
+        all_radii = []
+        all_pressures = []
+        for t, v in colonies.items():
+            index = str(t)
+            cells = colonies[index].cells
+            edges = colonies[index].tot_edges
+            [all_tensions.append(e.tension) for e in edges if e.tension not in all_tensions]
+            [all_radii.append(e.radius) for e in edges if e.radius not in all_radii]
+            [all_pressures.append(c.pressure) for c in cells if c.pressure not in all_pressures]
+        return all_tensions, all_radii, all_pressures
+
     def plot_single_nodes(self, fig, ax, label, colonies, max_num):
         """
         Plot the edges connected to a node specified by label
@@ -2215,7 +2285,11 @@ class manual_tracing_multiple:
         """
         ax.set(xlim = [0,1030], ylim = [0,1030], aspect = 1)
 
-        min_t, max_t, _, _ = self.get_min_max(colonies, label)
+        #min_t, max_t, _, _, _, _ = self.get_min_max(colonies, label)
+        all_tensions, all_radii, _ = self.all_tensions_and_radius_and_pressures(colonies)
+        _, max_t, min_t = self.get_min_max_by_outliers_iqr(all_tensions)
+        _, max_rad, min_rad = self.get_min_max_by_outliers_iqr(all_radii)
+
         
         for cindex, v in colonies.items():
             # Get all nodes, all edges
@@ -2272,7 +2346,9 @@ class manual_tracing_multiple:
         """
         max_num = len(colonies)
 
-        min_ten, max_ten, _, _ = self.get_min_max(colonies)
+        all_tensions, _, _ = self.all_tensions_and_radius_and_pressures(colonies)
+        _, max_ten, min_ten = self.get_min_max_by_outliers_iqr(all_tensions)
+
         #min_ten, max_ten = None, None
 
         for t, v in colonies.items():
@@ -2299,31 +2375,178 @@ class manual_tracing_multiple:
         plt.clf()
         plt.close()
 
-    def get_min_max(self, colonies, label = None):
+    def plot_single_cells(self, fig, ax, ax1, colonies, cell_label):
+        all_tensions, all_radii, all_pressures = self.all_tensions_and_radius_and_pressures(colonies)        
+        _, max_pres, min_pres = self.get_min_max_by_outliers_iqr(all_pressures, type = 'pressure')
+        frames = [i for i in colonies.keys()]
+        
+        pressures = []
+        for j, i in enumerate(frames):
+            cells = colonies[str(i)].cells
+            pres = [c.pressure for c in cells if c.label == cell_label]
+            if pres != []:
+                pressures.append(pres[0])
+            else:
+                frames = frames[0:j]
 
-        max_num = len(colonies)
+        ax1.plot(frames, pressures, lw = 3, color = 'black')
+        ax1.set_ylabel('Pressures', color='black')
+        ax1.set_xlabel('Frames')
 
-        min_ten, max_ten, min_pres, max_pres = None, None, None, None
+        for i in frames:
+            cells = colonies[str(i)].cells
+            edges = colonies[str(i)].tot_edges
+            ax.set(xlim = [0,1030], ylim = [0,1030], aspect = 1)
+            # ax1.set(xlim = [0,31], ylim = [min_pres, max_pres])
+            ax1.xaxis.set_major_locator(plt.MaxNLocator(12))
 
-        for t, v in colonies.items():
-            index = str(t)
-            t= int(t)
-            cells = colonies[index].cells
-            edges = colonies[index].tot_edges
-            nodes = colonies[index].tot_nodes
-            if label != None:
-                edges = [e for n in nodes for e in n.edges if n.label == label]
-            min_ten_temp = min([e.tension for e in edges])
-            max_ten_temp = max([e.tension for e in edges])
-            min_ten = min_ten_temp if min_ten == None or min_ten_temp < min_ten else min_ten
-            max_ten = max_ten_temp if max_ten == None or max_ten_temp > max_ten else max_ten
+            [e.plot(ax) for e in edges]
+ #           [n.plot(ax, markersize = 10) for n in nodes if n.label == node_label]
 
-            min_pres_temp = min([e.pressure for e in cells])
-            max_pres_temp = max([e.pressure for e in cells])
-            min_pres = min_pres_temp if min_pres == None or min_pres_temp < min_pres else min_pres
-            max_pres = max_pres_temp if max_pres == None or max_pres_temp > max_pres else max_pres
+            current_cell = [c for c in cells if c.label == cell_label][0]
+            # ax.plot(current_cell, color = 'red')
+            [current_cell.plot(ax, color = 'red', )]
 
-        return min_ten, max_ten, min_pres, max_pres
+
+            x = [n.loc[0] for n in current_cell.nodes]
+            y = [n.loc[1] for n in current_cell.nodes]
+            ax.fill(x, y, c= 'red', alpha = 0.2)
+            for e in current_cell.edges:
+                e.plot_fill(ax, color = 'red', alpha = 0.2)
+
+            ax1.plot(i, current_cell.pressure, 'ok', color = 'red')
+
+            fname = '_tmp%05d.png'%int(i)   
+            plt.savefig(fname)
+            plt.clf() 
+            plt.cla() 
+            plt.close()
+            fig, (ax, ax1) = plt.subplots(1,2, figsize = (14,6)) 
+            # ax.set(xlim = [0,1030], ylim = [0,1030], aspect = 1)
+            # ax1.set(xlim = [frames[0], frames[-1]], ylim = [0, 0.004])
+            ax1.plot(frames, pressures, lw = 3, color = 'black')
+            ax1.set_ylabel('Pressures', color='black')
+            ax1.set_xlabel('Frames')
+
+        fps = 1
+        os.system("rm movie_cell.mp4")
+        os.system("ffmpeg -r "+str(fps)+" -b 1800 -i _tmp%05d.png movie_cell.mp4")
+        os.system("rm _tmp*.png")
+
+        plt.cla()
+        plt.clf()
+        plt.close()
+
+
+    def plot_single_edges(self, fig, ax, ax1, colonies, node_label, edge_label):
+
+        all_tensions, all_radii, all_pressures = self.all_tensions_and_radius_and_pressures(colonies)
+        _, max_ten, min_ten = self.get_min_max_by_outliers_iqr(all_tensions)
+        _, max_rad, min_rad = self.get_min_max_by_outliers_iqr(all_radii)
+        _, max_pres, min_pres = self.get_min_max_by_outliers_iqr(all_pressures, type = 'pressure')
+
+        # ax.set(xlim = [0,1030], ylim = [0,1030], aspect = 1)
+
+        frames = [i for i in colonies.keys()]
+        # ax1.set(xlim = [frames[0], frames[-1]], ylim = [0, 0.004])
+
+        tensions = []
+        radii = []
+
+        for j, i in enumerate(frames):
+            dictionary = colonies[str(i)].dictionary
+            try:
+                tensions.append(dictionary[node_label][0][edge_label].tension)
+                radii.append(dictionary[node_label][0][edge_label].radius)
+            except:
+                frames = frames[0:j]
+
+        ax1.plot(frames, tensions, lw = 3, color = 'black')
+        ax1.set_ylabel('Tension', color='black')
+        ax1.set_xlabel('Frames')
+        ax2 = ax1.twinx()
+        ax2.plot(frames, radii, 'blue')
+        ax2.set_ylabel('Radius', color='blue')
+        ax2.tick_params('y', colors='blue')
+
+        for i in frames:
+            edges = colonies[str(i)].tot_edges
+            nodes = colonies[str(i)].tot_nodes
+            dictionary = colonies[str(i)].dictionary
+
+            ax.set(xlim = [0,1030], ylim = [0,1030], aspect = 1)
+          #  ax1.set(xlim = [0,31], ylim = [0,0.004])
+            ax1.set(xlim = [0,31], ylim = [min_ten, max_ten])
+            ax2.set(xlim = [0,31], ylim = [min_rad, max_rad])
+            ax1.xaxis.set_major_locator(plt.MaxNLocator(12))
+
+            [e.plot(ax) for e in edges]
+ #           [n.plot(ax, markersize = 10) for n in nodes if n.label == node_label]
+
+            current_edge = dictionary[node_label][0][edge_label]
+            [current_edge.plot(ax, lw=3, color = 'red')]
+
+            fname = '_tmp%05d.png'%int(i)   
+            ax1.plot(i, current_edge.tension, 'ok', color = 'red')
+            ax2.plot(i, current_edge.radius, 'ok', color = 'red')
+            plt.savefig(fname)
+
+            plt.clf() 
+            plt.cla() 
+            plt.close()
+            fig, (ax, ax1) = plt.subplots(1,2, figsize = (14,6)) 
+            # ax.set(xlim = [0,1030], ylim = [0,1030], aspect = 1)
+            # ax1.set(xlim = [frames[0], frames[-1]], ylim = [0, 0.004])
+            ax1.plot(frames, tensions, lw = 3, color = 'black')
+            ax1.set_ylabel('Tension', color='black')
+            ax1.set_xlabel('Frames')
+            ax2 = ax1.twinx()
+            ax2.plot(frames, radii, 'blue')
+            ax2.set_ylabel('Radius', color='blue')
+            ax2.tick_params('y', colors='blue')
+
+        fps = 1
+        os.system("rm movie_edge.mp4")
+        os.system("ffmpeg -r "+str(fps)+" -b 1800 -i _tmp%05d.png movie_edge.mp4")
+        os.system("rm _tmp*.png")
+
+        plt.cla()
+        plt.clf()
+        plt.close()
+
+
+    def get_min_max_by_outliers_iqr(self, ys, type = None):
+        """
+        Get the maximum and minimum of a data set by ignoring outliers
+        uses interquartile method
+        code from - http://colingorrie.github.io/outlier-detection.html
+        """
+        quartile_1, quartile_3 = np.percentile(ys, [25, 75])
+        iqr = quartile_3 - quartile_1
+        lower_bound = quartile_1 - (iqr * 1.5)
+        upper_bound = quartile_3 + (iqr * 1.5)
+        updated_list = np.where((ys > upper_bound) | (ys < lower_bound), np.inf, ys)
+        max_t = max([e for e in updated_list if e != np.inf])
+        min_t = min([e for e in updated_list if e != np.inf])
+        if type == None:
+            return updated_list, max_t, min_t
+        else:
+            #replace min_t with mean_t and max_t - min_t with standard deviation
+            std_t = np.std([e for e in updated_list if e != np.inf])
+            mean_t = np.mean([e for e in updated_list if e != np.inf])
+            return updated_list, mean_t + std_t, mean_t
+
+
+    def outliers_modified_z_score(self, ys, y):
+        """
+        Alternative outlier check. Not used currently
+        """
+        threshold = 3.5
+
+        median_y = np.median(ys)
+        median_absolute_deviation_y = np.median([np.abs(y - median_y) for y in ys])
+        modified_z_scores = 0.6745 * (y - median_y) / median_absolute_deviation_y
+        return np.where(np.abs(modified_z_scores) > threshold)
 
     def plot_pressures(self, fig, ax, colonies):
         """
@@ -2332,7 +2555,9 @@ class manual_tracing_multiple:
 
         max_num = len(colonies)
 
-        _, _, min_pres, max_pres = self.get_min_max(colonies)
+        _, _, all_pressures = self.all_tensions_and_radius_and_pressures(colonies)
+        _, max_pres, min_pres = self.get_min_max_by_outliers_iqr(all_pressures, type = 'pressure')
+
         #min_pres, max_pres = None, None
 
         for t, v in colonies.items():
@@ -2365,7 +2590,10 @@ class manual_tracing_multiple:
         """
         max_num = len(colonies)
 
-        min_ten, max_ten, min_pres, max_pres = self.get_min_max(colonies)
+        all_tensions, all_radii, all_pressures = self.all_tensions_and_radius_and_pressures(colonies)
+        _, max_ten, min_ten = self.get_min_max_by_outliers_iqr(all_tensions)
+        _, max_rad, min_rad = self.get_min_max_by_outliers_iqr(all_radii)
+        _, max_pres, min_pres = self.get_min_max_by_outliers_iqr(all_pressures, type = 'pressure')
         #min_ten, max_ten, min_pres, max_pres = None, None, None, None
 
 
