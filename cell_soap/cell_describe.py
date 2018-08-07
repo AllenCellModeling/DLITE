@@ -622,9 +622,7 @@ class colony:
     @property
     def dictionary(self):
         """
-        Dictionary of the form {node label: edges connected to node label}
-        Note -> these edges match are in an order that matches the order of edges in the 
-        dictionary at the previous time step
+        Dictionary of the form {node label: edges connected to node label: edge vector with horizontal}
         """
         return self._dictionary
     
@@ -2078,7 +2076,9 @@ class manual_tracing_multiple:
                 closest_new_node.label = prev_node.label
 
         # Check for any node labels that are empty and assign a 100+ number
-        count = 100
+        #count = 100
+        #testing
+        count = max([n.label for n in now_nodes])
         for node in now_nodes:
             if node.label == []:
                 node.label = count 
@@ -2525,6 +2525,7 @@ class manual_tracing_multiple:
         iqr = quartile_3 - quartile_1
         lower_bound = quartile_1 - (iqr * 1.5)
         upper_bound = quartile_3 + (iqr * 1.5)
+        # lower_bound, upper_bound = np.percentile(ys, (5,95))
         updated_list = np.where((ys > upper_bound) | (ys < lower_bound), np.inf, ys)
         max_t = max([e for e in updated_list if e != np.inf])
         min_t = min([e for e in updated_list if e != np.inf])
