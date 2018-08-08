@@ -117,6 +117,7 @@ class edge:
         self._cells = []
         self._tension = []
         self._guess_tension = []
+        self._label = []
 
     # def __str__(self):
     #     return "["+"   ->   ".join([str(n) for n in self.nodes])+"]"
@@ -133,6 +134,17 @@ class edge:
     def cells(self, cell):
         if cell not in self._cells:
             self._cells.append(cell)
+
+    @property    
+    def label(self):
+        """
+        Give a label to a node so we can track it over time
+        """
+        return self._label
+
+    @label.setter
+    def label(self, label):
+        self._label = label
 
     def kill_edge(self, node):
         """
@@ -547,6 +559,21 @@ class cell:
 
     def perimeter(self):
         return sum([e.straight_length for e in self.edges ])  
+
+    def centroid(self):
+        x = [n.loc[0] for n in self.nodes]
+        y = [n.loc[1] for n in self.nodes]
+        return (np.mean(x), np.mean(y))
+
+    def area(self):
+        vertices = [n.loc for n in self.nodes]
+        n = len(vertices) # of corners
+        a = 0.0
+        for i in range(n):
+            j = (i + 1) % n
+            a += abs(vertices[i][0] * vertices[j][1]-vertices[j][0] * vertices[i][1])
+        result = a / 2.0
+        return result
     
     @property
     def pressure(self):
@@ -940,20 +967,22 @@ class colony:
                     adj_press = self.get_adjacent_pressures(e_or_c)
                     guess = np.mean(adj_press) if adj_press != [] else 0
                     [I.append(guess) if guess != 0 else I.append(0)]
+                    I.append(0)
 
                     #testing
-                    if any(I) != 0:
-                        mn = np.mean(I)
-                        for j, a in enumerate(I):
-                            if a == 0:
-                                I[j] = mn
+                    # if any(I) != 0:
+                    #     mn = np.mean(I)
+                    #     for j, a in enumerate(I):
+                    #         if a == 0:
+                    #             I[j] = mn
                 else:
-                    if e_or_c.guess_pressure != 0:
-                        I.append(e_or_c.guess_pressure)
-                    else:
-                        adj_press = self.get_adjacent_pressures(e_or_c)
-                        guess = np.mean(adj_press) if adj_press != [] else 0
-                        [I.append(guess) if guess != 0 else I.append(1e-5)]
+                    I.append(e_or_c.guess_pressure)
+                    # if e_or_c.guess_pressure != 0:
+                    #     I.append(e_or_c.guess_pressure)
+                    # else:
+                    #     adj_press = self.get_adjacent_pressures(e_or_c)
+                    #     guess = np.mean(adj_press) if adj_press != [] else 0
+                    #     [I.append(guess) if guess != 0 else I.append(1e-5)]
 
         return I
 
@@ -2005,6 +2034,7 @@ class manual_tracing_multiple:
         for k, cell in enumerate(initial_cells):
             cell.label = k
 
+
         return temp_nodes, old_dictionary, initial_cells, edges
 
 
@@ -2023,8 +2053,12 @@ class manual_tracing_multiple:
         def func(p, common_node):
             # This function outputs the absolute angle (0 to 360) that the edge makes with the horizontal
             if p.node_a == common_node:
+                # ind = p.node_a.edges.index(p)
+                # this_vec = p.node_a.tension_vectors[ind]
                 this_vec = np.subtract(p.node_b.loc, p.node_a.loc)
             else:
+                # ind = p.node_b.edges.index(p)
+                # this_vec = p.node_b.tension_vectors[ind]
                 this_vec = np.subtract(p.node_a.loc, p.node_b.loc)
             angle = np.arctan2(this_vec[1], this_vec[0])
             #return np.rad2deg((2*np.pi + angle)%(2*np.pi))
@@ -2035,23 +2069,6 @@ class manual_tracing_multiple:
             cosang = np.dot(v1, v2)
             sinang = la.norm(np.cross(v1, v2))
             return np.rad2deg(np.arctan2(sinang, cosang))
-
-        # def get_new_edges(old_dictionary, node)
-        #     old_angles = old_dictionary[node.label][1]
-        #     temp_edges = []
-        #     new_vec = [func(p, node) for p in node.edges]             
-        #     for old_e in old_angles:
-        #         v1_v2_angs = [py_ang(old_e, nw) for nw in new_vec]
-        #         min_ang = min(v1_v2_angs)
-        #         if min_ang > 20:                    
-        #             for ed in node.edges:
-        #                 vec = func(ed, node)
-        #                 if py_ang(old_e, vec) == min_ang:
-        #                     new_edge = ed
-        #                     return new_edge
-        #         else:
-        #             return []
-
 
         # Get list of nodes and edges for every time point
         old_nodes = old_colony.tot_nodes
@@ -2078,10 +2095,12 @@ class manual_tracing_multiple:
         # Check for any node labels that are empty and assign a 100+ number
         #count = 100
         #testing
-        count = max([n.label for n in now_nodes])
+        upper_limit = max([n.label for n in now_nodes if n.label != []])
+
+        count = upper_limit + 1
         for node in now_nodes:
             if node.label == []:
-                node.label = count 
+                node.label = count
                 count += 1
 
         # Sort now_nodes by label
@@ -2091,25 +2110,29 @@ class manual_tracing_multiple:
         # Make a new dictionary for the now_nodes list
         new_dictionary = defaultdict(list)
         for node in now_nodes:
-            if node.label < 100:
-                # old_edges = old_dictionary[node.label][0]
-                old_angles = old_dictionary[node.label][1]
-                temp_edges = []
-                new_vec = [func(p, node) for p in node.edges]
-                if len(old_angles) == len(node.edges):               
-                    for old_e in old_angles:
-                        v1_v2_angs = [py_ang(old_e, nw) for nw in new_vec]
-                        min_ang = min(v1_v2_angs)
-                        for ed in node.edges:
-                            vec = func(ed, node)
-                            if py_ang(old_e, vec) == min_ang:
-                                closest_edge = ed
-                                temp_edges.append(closest_edge)
+            if node.label < upper_limit + 1:
+                try:
+                    # old_edges = old_dictionary[node.label][0]
+                    old_angles = old_dictionary[node.label][1]
+                    temp_edges = []
+                    new_vec = [func(p, node) for p in node.edges]
+                    if len(old_angles) == len(node.edges):               
+                        for old_e in old_angles:
+                            v1_v2_angs = [py_ang(old_e, nw) for nw in new_vec]
+                            min_ang = min(v1_v2_angs)
+                            for ed in node.edges:
+                                vec = func(ed, node)
+                                if py_ang(old_e, vec) == min_ang:
+                                    closest_edge = ed
+                                    temp_edges.append(closest_edge)
 
-                #temp_edges = sorted(temp_edges, key = lambda p: p.straight_length)
-                new_vecs = [func(p, node) for p in temp_edges]
-                new_dictionary[node.label].append(temp_edges)
-                new_dictionary[node.label].append(new_vecs)
+                    #temp_edges = sorted(temp_edges, key = lambda p: p.straight_length)
+                    new_vecs = [func(p, node) for p in temp_edges]
+                    new_dictionary[node.label].append(temp_edges)
+                    new_dictionary[node.label].append(new_vecs)
+                except:
+                    pass
+
 
         set1 = set(old_dictionary)
         set2 = set(new_dictionary)
@@ -2141,22 +2164,30 @@ class manual_tracing_multiple:
         now_cells - cells in current time step
         """
         for j, cell in enumerate(old_cells):
-            nodes = cell.nodes
-            now_cell_nodes = []
-            for node in nodes:
-                match_now_node = [n for n in now_nodes if n.label == node.label]                
-                if match_now_node != []:
-                    now_cell_nodes.append(match_now_node[0])
+            print(cell.centroid())
+            closest_new_cell = min([c for c in now_cells], key = lambda p: np.linalg.norm(np.subtract(cell.centroid(), p.centroid())))
+            if closest_new_cell.label == []:
+                if np.linalg.norm(np.subtract(cell.centroid(), closest_new_cell.centroid())) < 100: #was 60 before
+                    closest_new_cell.label = cell.label
 
-            if -4 < len(cell.nodes) - len(now_cell_nodes) < 4:
-                # This means we found a matching label node for every node in cell
-                labels = [n.label for n in nodes]
-                match_cell = [c for c in now_cells if len(set([n.label for n in c.nodes]).intersection(set(labels))) > 3 ]
-                if match_cell != []:
-                    match_cell[0].label = cell.label
+            #OLD METHOD
+            # nodes = cell.nodes
+            # now_cell_nodes = []
+            # for node in nodes:
+            #     match_now_node = [n for n in now_nodes if n.label == node.label]                
+            #     if match_now_node != []:
+            #         now_cell_nodes.append(match_now_node[0])
+
+            # if -4 < len(cell.nodes) - len(now_cell_nodes) < 4:
+            #     # This means we found a matching label node for every node in cell
+            #     labels = [n.label for n in nodes]
+            #     match_cell = [c for c in now_cells if len(set([n.label for n in c.nodes]).intersection(set(labels))) > 3 ]
+            #     if match_cell != []:
+            #         match_cell[0].label = cell.label
                     # if match_cell[0].perimeter() - cell.perimeter() < 20:                  
                         # match_cell[0].label = cell.label
         return now_cells
+
 
     def assign_intial_guesses(self, now_nodes, combined_dict, now_cells, old_cells, edges2):
         """
@@ -2275,6 +2306,22 @@ class manual_tracing_multiple:
             [all_pressures.append(c.pressure) for c in cells if c.pressure not in all_pressures]
         return all_tensions, all_radii, all_pressures
 
+    def all_perims_areas_lengths(self, colonies):
+        """
+        Return all unique edge tensions, edge radii and cell pressures in all colonies
+        """
+        all_perims = []
+        all_areas = []
+        all_lengths = []
+        for t, v in colonies.items():
+            index = str(t)
+            cells = colonies[index].cells
+            edges = colonies[index].tot_edges
+            [all_lengths.append(e.straight_length) for e in edges if e.straight_length not in all_lengths]
+            [all_perims.append(c.perimeter()) for c in cells if c.perimeter() not in all_perims]
+            [all_areas.append(c.area()) for c in cells if c.area() not in all_areas]
+        return all_lengths, all_perims, all_areas
+
     def plot_single_nodes(self, fig, ax, label, colonies, max_num):
         """
         Plot the edges connected to a node specified by label
@@ -2289,7 +2336,7 @@ class manual_tracing_multiple:
         all_tensions, all_radii, _ = self.all_tensions_and_radius_and_pressures(colonies)
         _, max_t, min_t = self.get_min_max_by_outliers_iqr(all_tensions)
         _, max_rad, min_rad = self.get_min_max_by_outliers_iqr(all_radii)
-
+        count = 0
         
         for cindex, v in colonies.items():
             # Get all nodes, all edges
@@ -2322,12 +2369,13 @@ class manual_tracing_multiple:
                 cbaxes = fig.add_axes([0.13, 0.1, 0.03, 0.8])
                 cl = plt.colorbar(sm, cax = cbaxes)
                 cl.set_label('Normalized tension', fontsize = 13, labelpad = -60)            
-                pylab.savefig('_tmp%05d.png'%int(cindex), dpi=200)
+                pylab.savefig('_tmp%05d.png'%count, dpi=200)
                 plt.cla()
                 plt.clf()
                 plt.close()
                 fig, ax = plt.subplots(1,1, figsize = (8, 5))
                 ax.set(xlim = [0,1030], ylim = [0,1030], aspect = 1)
+                count += 1
 
         fps = 1
         os.system("rm movie_single_node.mp4")
@@ -2375,30 +2423,58 @@ class manual_tracing_multiple:
         plt.clf()
         plt.close()
 
-    def plot_single_cells(self, fig, ax, ax1, colonies, cell_label):
-        all_tensions, all_radii, all_pressures = self.all_tensions_and_radius_and_pressures(colonies)        
+    def plot_single_cells(self, fig, ax, ax1, ax3, colonies, cell_label):
+        all_tensions, all_radii, all_pressures = self.all_tensions_and_radius_and_pressures(colonies) 
+        all_lengths, all_perims, all_areas = self.all_perims_areas_lengths(colonies)       
         _, max_pres, min_pres = self.get_min_max_by_outliers_iqr(all_pressures, type = 'pressure')
+        _, max_perim, min_perim = self.get_min_max_by_outliers_iqr(all_perims)
+        _, max_area, min_area = self.get_min_max_by_outliers_iqr(all_areas)
         frames = [i for i in colonies.keys()]
+
         
-        pressures = []
+        pressures, areas, perimeters, change_in_area = [], [], [], [0]
         for j, i in enumerate(frames):
             cells = colonies[str(i)].cells
             pres = [c.pressure for c in cells if c.label == cell_label]
+            ares = [c.area() for c in cells if c.label == cell_label]
+            perims = [c.perimeter() for c in cells if c.label == cell_label]
             if pres != []:
                 pressures.append(pres[0])
+                areas.append(ares[0])
+                perimeters.append(perims[0])
+                if j > 0:
+                    change_in_area.append(perims[0] - perimeters[j-1])
             else:
                 frames = frames[0:j]
+
 
         ax1.plot(frames, pressures, lw = 3, color = 'black')
         ax1.set_ylabel('Pressures', color='black')
         ax1.set_xlabel('Frames')
+        ax2 = ax1.twinx()
+        ax2.plot(frames, perimeters, 'blue')
+        ax2.set_ylabel('Perimeters', color='blue')
+        ax2.tick_params('y', colors='blue')
 
-        for i in frames:
+        ax3.plot(frames, areas, lw = 3, color = 'black')
+        ax3.set_ylabel('Areas', color='black')
+        ax3.set_xlabel('Frames')
+        ax4 = ax3.twinx()
+        ax4.plot(frames, change_in_area, 'blue')
+        ax4.set_ylabel('Change in Area', color='blue')
+        ax4.tick_params('y', colors='blue')
+
+        for j, i in enumerate(frames):
             cells = colonies[str(i)].cells
             edges = colonies[str(i)].tot_edges
             ax.set(xlim = [0,1030], ylim = [0,1030], aspect = 1)
             # ax1.set(xlim = [0,31], ylim = [min_pres, max_pres])
             ax1.xaxis.set_major_locator(plt.MaxNLocator(12))
+            ax3.xaxis.set_major_locator(plt.MaxNLocator(12))
+            ax1.set(xlim = [0,31])
+            ax2.set(xlim = [0,31], ylim = [min_perim, max_perim])
+            ax3.set(xlim = [0,31], ylim = [min_area, max_area])
+            ax4.set(xlim = [0,31])
 
             [e.plot(ax) for e in edges]
  #           [n.plot(ax, markersize = 10) for n in nodes if n.label == node_label]
@@ -2415,18 +2491,35 @@ class manual_tracing_multiple:
                 e.plot_fill(ax, color = 'red', alpha = 0.2)
 
             ax1.plot(i, current_cell.pressure, 'ok', color = 'red')
+            ax2.plot(i, current_cell.perimeter(), 'ok', color = 'red')
+            ax3.plot(i, current_cell.area(), 'ok', color = 'red')
+            ax4.plot(i, change_in_area[j], 'ok', color = 'red')
 
-            fname = '_tmp%05d.png'%int(i)   
+            fname = '_tmp%05d.png'%int(j) 
+            plt.tight_layout()  
             plt.savefig(fname)
             plt.clf() 
             plt.cla() 
             plt.close()
-            fig, (ax, ax1) = plt.subplots(1,2, figsize = (14,6)) 
+            fig, (ax, ax1, ax3) = plt.subplots(3,1, figsize = (5.5,15)) 
+            #fig, (ax, ax1) = plt.subplots(1,2, figsize = (14,6)) 
             # ax.set(xlim = [0,1030], ylim = [0,1030], aspect = 1)
             # ax1.set(xlim = [frames[0], frames[-1]], ylim = [0, 0.004])
             ax1.plot(frames, pressures, lw = 3, color = 'black')
             ax1.set_ylabel('Pressures', color='black')
             ax1.set_xlabel('Frames')
+            ax2 = ax1.twinx()
+            ax2.plot(frames, perimeters, 'blue')
+            ax2.set_ylabel('Perimeters', color='blue')
+            ax2.tick_params('y', colors='blue')
+
+            ax3.plot(frames, areas, lw = 3, color = 'black')
+            ax3.set_ylabel('Areas', color='black')
+            ax3.set_xlabel('Frames')
+            ax4 = ax3.twinx()
+            ax4.plot(frames, change_in_area, 'blue')
+            ax4.set_ylabel('Change in Area', color='blue')
+            ax4.tick_params('y', colors='blue')
 
         fps = 1
         os.system("rm movie_cell.mp4")
@@ -2438,10 +2531,12 @@ class manual_tracing_multiple:
         plt.close()
 
 
-    def plot_single_edges(self, fig, ax, ax1, colonies, node_label, edge_label):
+    def plot_single_edges(self, fig, ax, ax1, ax3, colonies, node_label, edge_label):
 
         all_tensions, all_radii, all_pressures = self.all_tensions_and_radius_and_pressures(colonies)
+        all_lengths, all_perims, all_areas = self.all_perims_areas_lengths(colonies)   
         _, max_ten, min_ten = self.get_min_max_by_outliers_iqr(all_tensions)
+        _, max_len, min_len = self.get_min_max_by_outliers_iqr(all_lengths)
         _, max_rad, min_rad = self.get_min_max_by_outliers_iqr(all_radii)
         _, max_pres, min_pres = self.get_min_max_by_outliers_iqr(all_pressures, type = 'pressure')
 
@@ -2452,12 +2547,18 @@ class manual_tracing_multiple:
 
         tensions = []
         radii = []
+        length = []
+        change_in_length = [0]
 
         for j, i in enumerate(frames):
             dictionary = colonies[str(i)].dictionary
             try:
-                tensions.append(dictionary[node_label][0][edge_label].tension)
-                radii.append(dictionary[node_label][0][edge_label].radius)
+                edd = dictionary[node_label][0][edge_label]
+                tensions.append(edd.tension)
+                radii.append(edd.radius)
+                length.append(edd.straight_length)
+                if j >0:
+                    change_in_length.append(edd.straight_length - length[j - 1])                    
             except:
                 frames = frames[0:j]
 
@@ -2469,7 +2570,15 @@ class manual_tracing_multiple:
         ax2.set_ylabel('Radius', color='blue')
         ax2.tick_params('y', colors='blue')
 
-        for i in frames:
+        ax3.plot(frames, length, lw = 3, color = 'black')
+        ax3.set_ylabel('Length', color='black')
+        ax3.set_xlabel('Frames')
+        ax4 = ax3.twinx()
+        ax4.plot(frames, change_in_length, 'blue')
+        ax4.set_ylabel('Change in length', color='blue')
+        ax4.tick_params('y', colors='blue')
+
+        for j, i in enumerate(frames):
             edges = colonies[str(i)].tot_edges
             nodes = colonies[str(i)].tot_nodes
             dictionary = colonies[str(i)].dictionary
@@ -2478,7 +2587,10 @@ class manual_tracing_multiple:
           #  ax1.set(xlim = [0,31], ylim = [0,0.004])
             ax1.set(xlim = [0,31], ylim = [min_ten, max_ten])
             ax2.set(xlim = [0,31], ylim = [min_rad, max_rad])
+            ax3.set(xlim = [0,31], ylim = [min_len, max_len])
+            ax4.set(xlim = [0,31], ylim = [min(change_in_length), max(change_in_length)])
             ax1.xaxis.set_major_locator(plt.MaxNLocator(12))
+            ax3.xaxis.set_major_locator(plt.MaxNLocator(12))
 
             [e.plot(ax) for e in edges]
  #           [n.plot(ax, markersize = 10) for n in nodes if n.label == node_label]
@@ -2486,15 +2598,18 @@ class manual_tracing_multiple:
             current_edge = dictionary[node_label][0][edge_label]
             [current_edge.plot(ax, lw=3, color = 'red')]
 
-            fname = '_tmp%05d.png'%int(i)   
+            fname = '_tmp%05d.png'%int(j)   
             ax1.plot(i, current_edge.tension, 'ok', color = 'red')
             ax2.plot(i, current_edge.radius, 'ok', color = 'red')
-            plt.savefig(fname)
+            ax3.plot(i, current_edge.straight_length, 'ok', color = 'red')
+            ax4.plot(i, change_in_length[j], 'ok', color = 'red')
+            plt.tight_layout()
 
+            plt.savefig(fname)
             plt.clf() 
             plt.cla() 
             plt.close()
-            fig, (ax, ax1) = plt.subplots(1,2, figsize = (14,6)) 
+            fig, (ax, ax1, ax3) = plt.subplots(3,1, figsize = (5.5,15))  # figsize (14,6) before
             # ax.set(xlim = [0,1030], ylim = [0,1030], aspect = 1)
             # ax1.set(xlim = [frames[0], frames[-1]], ylim = [0, 0.004])
             ax1.plot(frames, tensions, lw = 3, color = 'black')
@@ -2504,6 +2619,15 @@ class manual_tracing_multiple:
             ax2.plot(frames, radii, 'blue')
             ax2.set_ylabel('Radius', color='blue')
             ax2.tick_params('y', colors='blue')
+
+            ax3.plot(frames, length, lw = 3, color = 'black')
+            ax3.set_ylabel('Length', color='black')
+            ax3.set_xlabel('Frames')
+            ax4 = ax3.twinx()
+            ax4.plot(frames, change_in_length, 'blue')
+            ax4.set_ylabel('Change in length', color='blue')
+            ax4.tick_params('y', colors='blue')
+
 
         fps = 1
         os.system("rm movie_edge.mp4")
