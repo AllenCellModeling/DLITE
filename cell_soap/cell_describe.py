@@ -15,6 +15,7 @@ import matplotlib.animation as manimation
 from collections import defaultdict
 import pylab
 import scipy
+from scipy.optimize import basinhopping
 #from Dave_cell_find import find_all_cells, cells_on_either_side, trace_cell_cycle
 
 class node:
@@ -882,6 +883,7 @@ class colony:
 
         if type(edges[0]) == edge:
             cons = [{'type': 'eq', 'fun':self.equality_constraint_tension}]
+            print(edges[0].guess_tension)
             # x0 = np.ones(len(edges))*0.002
             if not edges[0].guess_tension:
 
@@ -889,25 +891,41 @@ class colony:
 
                 # This is correct, use this
                 #sol = minimize(self.objective_function_tension, x0, method = 'SLSQP', constraints = cons)
-                sol = minimize(self.objective_function_tension, x0, method = 'Nelder-Mead', options = {**kwargs})
+
+                sol = minimize(self.objective_function_tension, x0, method = 'L-BFGS-B', bounds = bnds, options = {**kwargs})
             else:
-                sol = minimize(self.objective_function_tension, x0, method = 'Nelder-Mead', options = {**kwargs})
+                if x0.count(x0[0]) == len(x0):
+                    print('why')
+                    minimizer_kwargs = {"method": "L-BFGS-B", "bounds" : bnds} # used only BFGS and no bounds before
+                    sol = basinhopping(self.objective_function_tension, x0, minimizer_kwargs=minimizer_kwargs, niter=150, disp = True)
+                    #sol = minimize(self.objective_function_tension, x0, method = 'L-BFGS-B', bounds = bnds, options = {**kwargs})
+                    # print("global minimum: x = %.4f, f(x0) = %.4f" % (sol.x, sol.fun))
+                else:
+                    sol = minimize(self.objective_function_tension, x0, method = 'L-BFGS-B', bounds = bnds, options = {**kwargs})
         else:
             cons = [{'type': 'eq', 'fun':self.equality_constraint_pressure}]
             # x0 = np.zeros(len(edges))
-            if not edges[0].guess_pressure:
+            if not edges[0].guess_pressure and edges[0].guess_pressure != 0:
                 #sol = minimize(self.objective_function_pressure, x0, method = 'SLSQP', bounds = bnds, constraints = cons)
 
                 # This is correct, use this
                 # sol = minimize(self.objective_function_pressure, x0, method = 'SLSQP', constraints = cons)
-                sol = minimize(self.objective_function_pressure, x0, method = 'Nelder-Mead', options = {**kwargs})
+                sol = minimize(self.objective_function_pressure, x0, method = 'L-BFGS-B', options = {**kwargs})
             else:
-                sol = minimize(self.objective_function_pressure, x0, method = 'Nelder-Mead', options = {**kwargs})
+                print(x0)
+                if x0.count(x0[0]) == len(x0):
+                    print('why')
+                    minimizer_kwargs = {"method": "L-BFGS-B"}
+                    sol = basinhopping(self.objective_function_pressure, x0, minimizer_kwargs=minimizer_kwargs, niter=150, disp = True)
+                    #sol = minimize(self.objective_function_pressure, x0, method = 'L-BFGS-B', bounds = bnds, options = {**kwargs})
+                    # print("global minimum: x = %.4f, f(x0) = %.4f" % (sol.x, sol.fun))
+                else:
+                    sol = minimize(self.objective_function_pressure, x0, method = 'L-BFGS-B', bounds = bnds, options = {**kwargs})
         # print(sol)
-        print('Success', sol.success)
+        # print('Success', sol.success)
         print('Function value', sol.fun)
-        print('Function evaluations', sol.nfev)
-        print('Number of iterations', sol.nit)
+        # print('Function evaluations', sol.nfev)
+        # print('Number of iterations', sol.nit)
         print('Solution', sol.x)
         print('\n')
         print('-----------------------------')
@@ -928,16 +946,19 @@ class colony:
         for j, e_or_c in enumerate(edge_or_cell):
             if type(e_or_c) == edge:
                 if not e_or_c.guess_tension:
-                    b.append((-np.inf, np.inf))
+                    b.append((0, np.inf))
+                    # b.append((-np.inf, np.inf))
                 else:
                     tolerance = e_or_c.guess_tension * tol_perc
-                    b.append((e_or_c.guess_tension - tolerance, e_or_c.guess_tension + tolerance))                    
+                    b.append((0, np.inf))
+                    # b.append((e_or_c.guess_tension - tolerance, e_or_c.guess_tension + tolerance))                    
             else:
                 if not e_or_c.guess_pressure:
                     b.append((-np.inf, np.inf))
                 else:
                     tolerance = e_or_c.guess_pressure * tol_perc
-                    b.append((e_or_c.guess_pressure - tolerance, e_or_c.guess_pressure + tolerance))   
+                    b.append((-np.inf, np.inf))
+                    # b.append((e_or_c.guess_pressure - tolerance, e_or_c.guess_pressure + tolerance))   
         return tuple(b)
 
     def initial_conditions(self, edge_or_cell):
@@ -957,17 +978,27 @@ class colony:
                     node_a, node_b = e_or_c.node_a, e_or_c.node_b
                     tensions_a = [e.guess_tension for e in node_a.edges if e.guess_tension != []]
                     tensions_b = [e.guess_tension for e in node_b.edges if e.guess_tension != []]
-                    guess = np.mean(tensions_a) if tensions_a != [] else 0
-                    guess = (guess + np.mean(tensions_b))/2 if tensions_b != [] else guess
-                    [I.append(guess) if guess != 0 else I.append(0.002)]
+                    guess_a = np.mean(tensions_a) if tensions_a != [] else 0
+                    guess_b = np.mean(tensions_b) if tensions_b != [] else 0
+
+                    guess = (guess_a + guess_b)/2 if guess_a != 0 and guess_b != 0 else\
+                            guess_a if guess_b == 0 and guess_a != 0 else\
+                            guess_b if guess_a == 0 and guess_b != 0 else\
+                            1e-5
+                    I.append(guess)
+                    # Update the guess tension used
+                    e_or_c.guess_tension = I[j]
                 else:
                     I.append(e_or_c.guess_tension)
+                
             else:
                 if not e_or_c.guess_pressure:
                     adj_press = self.get_adjacent_pressures(e_or_c)
                     guess = np.mean(adj_press) if adj_press != [] else 0
-                    [I.append(guess) if guess != 0 else I.append(0)]
-                    I.append(0)
+                    [I.append(guess) if guess != 0 else I.append(1e-6)]
+                    # I.append(0)
+                    # Upodate guess pressure used
+                    e_or_c.guess_pressure = I[j]
 
                     #testing
                     # if any(I) != 0:
@@ -983,6 +1014,8 @@ class colony:
                     #     adj_press = self.get_adjacent_pressures(e_or_c)
                     #     guess = np.mean(adj_press) if adj_press != [] else 0
                     #     [I.append(guess) if guess != 0 else I.append(1e-5)]
+
+        #print(I)
 
         return I
 
@@ -1009,10 +1042,16 @@ class colony:
         objective = 0
         for j, row in enumerate(A[:,:]):
             row_obj = 0
+            mag = 0
             for k, element in enumerate(row):
                 if element != 0:
                     row_obj = row_obj + element*x[k]
-            objective = objective + (row_obj)**2 
+                    mag = mag + x[k]
+                if mag != 0:
+                    rhs = row_obj/mag
+                else:
+                    rhs = 0
+            objective = objective + (row_obj - rhs)**2 
 
         return objective 
 
@@ -2034,6 +2073,9 @@ class manual_tracing_multiple:
         for k, cell in enumerate(initial_cells):
             cell.label = k
 
+        for p, ed in enumerate(edges):
+            ed.label = p
+
 
         return temp_nodes, old_dictionary, initial_cells, edges
 
@@ -2075,6 +2117,7 @@ class manual_tracing_multiple:
         old_edges = old_colony.tot_edges
         old_cells = old_colony.cells
 
+
         # Get list of nodes and edges for names_now
         # No labelling
         now_nodes, now_edges, now_cells = self.get_nodes_edges_cells(number_now)
@@ -2090,48 +2133,93 @@ class manual_tracing_multiple:
                 if py_ang(closest_new_node.tension_vectors[0], prev_node.tension_vectors[0]) < 15:
                     closest_new_node.label = prev_node.label
             else:
+                # If its connected to 3 edges, closest node is fine. only single edge nodes had problems 
                 closest_new_node.label = prev_node.label
 
-        # Check for any node labels that are empty and assign a 100+ number
-        #count = 100
+
         #testing
         upper_limit = max([n.label for n in now_nodes if n.label != []])
+        upper_edge_limit = max([e.label for e in old_edges if e.label != []])
 
-        count = upper_limit + 1
-        for node in now_nodes:
-            if node.label == []:
-                node.label = count
-                count += 1
 
-        # Sort now_nodes by label
-        now_nodes = sorted(now_nodes, key = lambda p: p.label)
+
+        # Correct stuff
+        # count = upper_limit
+        # for node in now_nodes:
+        #     if node.label == []:
+        #         node.label = count
+        #         count += 1
+
+        # # Sort now_nodes by label
+        # now_nodes = sorted(now_nodes, key = lambda p: p.label)
+        # end of correct stuff
 
 
         # Make a new dictionary for the now_nodes list
         new_dictionary = defaultdict(list)
-        for node in now_nodes:
-            if node.label < upper_limit + 1:
-                try:
-                    # old_edges = old_dictionary[node.label][0]
-                    old_angles = old_dictionary[node.label][1]
-                    temp_edges = []
-                    new_vec = [func(p, node) for p in node.edges]
-                    if len(old_angles) == len(node.edges):               
-                        for old_e in old_angles:
-                            v1_v2_angs = [py_ang(old_e, nw) for nw in new_vec]
-                            min_ang = min(v1_v2_angs)
-                            for ed in node.edges:
-                                vec = func(ed, node)
-                                if py_ang(old_e, vec) == min_ang:
-                                    closest_edge = ed
-                                    temp_edges.append(closest_edge)
+        total_now_edges = []
 
-                    #temp_edges = sorted(temp_edges, key = lambda p: p.straight_length)
-                    new_vecs = [func(p, node) for p in temp_edges]
-                    new_dictionary[node.label].append(temp_edges)
-                    new_dictionary[node.label].append(new_vecs)
-                except:
-                    pass
+        for node in now_nodes:
+            if node.label != []:
+                if node.label < upper_limit + 1:
+                    try:
+                        old_edges_node = old_dictionary[node.label][0]
+                        old_angles = old_dictionary[node.label][1]
+                        temp_edges = []
+                        new_vec = [func(p, node) for p in node.edges]
+                        if len(old_angles) == len(node.edges):               
+                            for old_e in old_angles:
+                                v1_v2_angs = [py_ang(old_e, nw) for nw in new_vec]
+                                min_ang = min(v1_v2_angs)
+                                for ed in node.edges:
+                                    vec = func(ed, node)
+                                    if py_ang(old_e, vec) == min_ang:
+                                        closest_edge = ed
+                                        temp_edges.append(closest_edge)
+                                        if closest_edge not in total_now_edges:
+                                            total_now_edges.append(closest_edge)
+
+                        #temp_edges = sorted(temp_edges, key = lambda p: p.straight_length)
+                        new_vecs = [func(p, node) for p in temp_edges]
+                        for k, p in zip(old_edges_node, temp_edges):
+                            #print(p.label, p, k)
+                            if p.label == []:
+                                labels = [e.label for e in total_now_edges]
+                                if k.label not in labels:
+                                    p.label = k.label
+                        new_dictionary[node.label].append(temp_edges)
+                        new_dictionary[node.label].append(new_vecs)
+                    except:
+                        pass
+
+
+        # New stuff
+        if upper_limit < 100:
+            count = 100
+        else:
+            count = upper_limit + 1
+
+        if upper_edge_limit < 100:
+            count_edge = 100
+        else:
+            count_edge = upper_edge_limit + 1
+
+        # count_edge += count_edge + 1   
+
+        for node in now_nodes:
+            if node.label == []:
+                print(count, count_edge)
+                node.label = count
+                count += 1
+                for e in node.edges:
+                    if e.label == []:
+                        e.label = count_edge
+                        count_edge += 1 
+                temp_edges = node.edges
+                new_vecs = [func(p, node) for p in temp_edges]
+                new_dictionary[node.label].append(temp_edges)
+                new_dictionary[node.label].append(new_vecs)
+        # end of stuff
 
 
         set1 = set(old_dictionary)
@@ -2148,10 +2236,9 @@ class manual_tracing_multiple:
 
         now_cells = self.label_cells(now_nodes, old_cells, now_cells)
 
-
         # Define a colony 
         edges2 = [e for e in now_edges if e.radius is not None]
-        now_nodes, now_cells, edges2 = self.assign_intial_guesses(now_nodes, combined_dict, now_cells, old_cells, edges2)
+        now_nodes, now_cells, edges2 = self.assign_intial_guesses(now_nodes, combined_dict, now_cells, old_cells, edges2, old_edges)
         new_colony = colony(now_cells, edges2, now_nodes)
 
         return new_colony, new_dictionary
@@ -2164,32 +2251,15 @@ class manual_tracing_multiple:
         now_cells - cells in current time step
         """
         for j, cell in enumerate(old_cells):
-            print(cell.centroid())
             closest_new_cell = min([c for c in now_cells], key = lambda p: np.linalg.norm(np.subtract(cell.centroid(), p.centroid())))
             if closest_new_cell.label == []:
                 if np.linalg.norm(np.subtract(cell.centroid(), closest_new_cell.centroid())) < 100: #was 60 before
                     closest_new_cell.label = cell.label
 
-            #OLD METHOD
-            # nodes = cell.nodes
-            # now_cell_nodes = []
-            # for node in nodes:
-            #     match_now_node = [n for n in now_nodes if n.label == node.label]                
-            #     if match_now_node != []:
-            #         now_cell_nodes.append(match_now_node[0])
-
-            # if -4 < len(cell.nodes) - len(now_cell_nodes) < 4:
-            #     # This means we found a matching label node for every node in cell
-            #     labels = [n.label for n in nodes]
-            #     match_cell = [c for c in now_cells if len(set([n.label for n in c.nodes]).intersection(set(labels))) > 3 ]
-            #     if match_cell != []:
-            #         match_cell[0].label = cell.label
-                    # if match_cell[0].perimeter() - cell.perimeter() < 20:                  
-                        # match_cell[0].label = cell.label
         return now_cells
 
 
-    def assign_intial_guesses(self, now_nodes, combined_dict, now_cells, old_cells, edges2):
+    def assign_intial_guesses(self, now_nodes, combined_dict, now_cells, old_cells, edges2, old_edges):
         """
         Process -
         (1) Call track_timestep - this assigns a generic labeling of nodes and cells to
@@ -2207,12 +2277,22 @@ class manual_tracing_multiple:
                 match_old_cell = [old for old in old_cells if old.label == cell.label][0]
                 cell.guess_pressure = match_old_cell.pressure
         
+        for ed in old_edges:
+            label = ed.label
+            for new_ed in edges2:
+                if new_ed.label == label:
+                    if new_ed.guess_tension == []:
+                        print('assigned')
+                        new_ed.guess_tension = ed.tension
 
-        for k,v in combined_dict.items():
-            # v[0] is list of old edges and v[1] is list of matching new edges
-            for old, new in zip(v[0], v[1]):
-                match_edge = [e for e in edges2 if e == new][0]
-                match_edge.guess_tension = old.tension
+        # for k,v in combined_dict.items():
+        #     # v[0] is list of old edges and v[1] is list of matching new edges
+        #     for old, new in zip(v[0], v[1]):
+        #         match_edge = [e for e in edges2 if e == new][0]
+        #         if match_edge.guess_tension == []:
+        #             match_edge.guess_tension = old.tension
+        #         else:
+        #             match_edge.guess_tension = (old.tension + match_edge.guess_tension)/2
 
         # Note - right now edges2 not changing at all. Left it here so that if we want to add labels to edges2, can do it here
 
@@ -2530,9 +2610,7 @@ class manual_tracing_multiple:
         plt.clf()
         plt.close()
 
-
-    def plot_single_edges(self, fig, ax, ax1, ax3, colonies, node_label, edge_label):
-
+    def single_edge_plotting(self, fig, ax, ax1, ax3, colonies, node_label, edge_label):
         all_tensions, all_radii, all_pressures = self.all_tensions_and_radius_and_pressures(colonies)
         all_lengths, all_perims, all_areas = self.all_perims_areas_lengths(colonies)   
         _, max_ten, min_ten = self.get_min_max_by_outliers_iqr(all_tensions)
@@ -2628,6 +2706,9 @@ class manual_tracing_multiple:
             ax4.set_ylabel('Change in length', color='blue')
             ax4.tick_params('y', colors='blue')
 
+    def plot_single_edges(self, fig, ax, ax1, ax3, colonies, node_label, edge_label):
+
+        self.single_edge_plotting(fig, ax, ax1, ax3, colonies, node_label, edge_label)
 
         fps = 1
         os.system("rm movie_edge.mp4")
@@ -2638,6 +2719,350 @@ class manual_tracing_multiple:
         plt.clf()
         plt.close()
 
+    def plot_guess_tension(self, fig, ax, ax1, colonies, node_label, edge_label):
+        frames = [i for i in colonies.keys()]
+
+        all_tensions, all_radii, all_pressures = self.all_tensions_and_radius_and_pressures(colonies)
+        all_lengths, all_perims, all_areas = self.all_perims_areas_lengths(colonies)   
+        _, max_ten, min_ten = self.get_min_max_by_outliers_iqr(all_tensions)
+
+        tensions = []
+        guesses = []
+
+        for j, i in enumerate(frames):
+            dictionary = colonies[str(i)].dictionary
+            try:
+                edd = dictionary[node_label][0][edge_label]
+                tensions.append(edd.tension)
+                guesses.append(edd.guess_tension)
+                # if type(edd.guess_tension) == int:
+                #     guesses.append(edd.guess_tension) 
+                # else:
+                #     guesses.append([])                
+            except:
+                frames = frames[0:j]
+
+        for j, i in enumerate(guesses):
+            if i == []:
+                guesses[j] = 0.002
+
+        ax1.plot(frames, tensions, lw = 3, color = 'black')
+        ax1.set_ylabel('Tension', color='black')
+        ax1.set_xlabel('Frames')
+        ax2 = ax1.twinx()
+        ax2.plot(frames, guesses, 'blue')
+        ax2.set_ylabel('Guess Tension', color='blue')
+        ax2.tick_params('y', colors='blue')
+
+        for j, i in enumerate(frames):
+            edges = colonies[str(i)].tot_edges
+            nodes = colonies[str(i)].tot_nodes
+            dictionary = colonies[str(i)].dictionary
+
+            ax.set(xlim = [0,1030], ylim = [0,1030], aspect = 1)
+          #  ax1.set(xlim = [0,31], ylim = [0,0.004])
+            ax1.set(xlim = [0,31], ylim = [min_ten, max_ten])
+            ax2.set(xlim = [0,31], ylim = [min_ten, max_ten])
+            ax1.xaxis.set_major_locator(plt.MaxNLocator(12))
+
+            [e.plot(ax) for e in edges]
+            current_edge = dictionary[node_label][0][edge_label]
+            [current_edge.plot(ax, lw=3, color = 'red')]
+
+            fname = '_tmp%05d.png'%int(j)   
+            ax1.plot(i, current_edge.tension, 'ok', color = 'red')
+            ax2.plot(i, guesses[j], 'ok', color = 'red')
+            plt.tight_layout()
+
+            plt.savefig(fname)
+            plt.clf() 
+            plt.cla() 
+            plt.close()
+            fig, (ax, ax1) = plt.subplots(2,1, figsize = (5.5,10))  # figsize (14,6) before
+            # ax.set(xlim = [0,1030], ylim = [0,1030], aspect = 1)
+            # ax1.set(xlim = [frames[0], frames[-1]], ylim = [0, 0.004])
+            ax1.plot(frames, tensions, lw = 3, color = 'black')
+            ax1.set_ylabel('Tension', color='black')
+            ax1.set_xlabel('Frames')
+            ax2 = ax1.twinx()
+            ax2.plot(frames, guesses, 'blue')
+            ax2.set_ylabel('Guess Tension', color='blue')
+            ax2.tick_params('y', colors='blue')
+        fps = 1
+        os.system("rm movie_edge_guess.mp4")
+        os.system("ffmpeg -r "+str(fps)+" -b 1800 -i _tmp%05d.png movie_edge_guess.mp4")
+        os.system("rm _tmp*.png")
+
+        plt.cla()
+        plt.clf()
+        plt.close()
+
+    def plot_guess_pressures(self, fig, ax, ax1,colonies, cell_label):
+
+
+        frames = [i for i in colonies.keys()]
+
+        
+        pressures, guesses = [], []
+        for j, i in enumerate(frames):
+            cells = colonies[str(i)].cells
+            pres = [c.pressure for c in cells if c.label == cell_label]
+            gess = [c.guess_pressure for c in cells if c.label == cell_label]
+            if pres != []:
+                pressures.append(pres[0])
+                guesses.append(gess[0])
+            else:
+                frames = frames[0:j]
+
+        for j, i in enumerate(guesses):
+            if i == []:
+                guesses[j] = 0
+
+
+        ax1.plot(frames, pressures, lw = 3, color = 'black')
+        ax1.set_ylabel('Pressures', color='black')
+        ax1.set_xlabel('Frames')
+        ax2 = ax1.twinx()
+        ax2.plot(frames, guesses, 'blue')
+        ax2.set_ylabel('Guess Pressure', color='blue')
+        ax2.tick_params('y', colors='blue')
+
+
+        for j, i in enumerate(frames):
+            cells = colonies[str(i)].cells
+            edges = colonies[str(i)].tot_edges
+            ax.set(xlim = [0,1030], ylim = [0,1030], aspect = 1)
+            # ax1.set(xlim = [0,31], ylim = [min_pres, max_pres])
+            ax1.xaxis.set_major_locator(plt.MaxNLocator(12))
+            ax1.set(xlim = [0,31])
+
+
+            [e.plot(ax) for e in edges]
+            current_cell = [c for c in cells if c.label == cell_label][0]
+            # ax.plot(current_cell, color = 'red')
+            [current_cell.plot(ax, color = 'red', )]
+
+
+            x = [n.loc[0] for n in current_cell.nodes]
+            y = [n.loc[1] for n in current_cell.nodes]
+            ax.fill(x, y, c= 'red', alpha = 0.2)
+            for e in current_cell.edges:
+                e.plot_fill(ax, color = 'red', alpha = 0.2)
+
+            ax1.plot(i, current_cell.pressure, 'ok', color = 'red')
+            ax2.plot(i, guesses[j], 'ok', color = 'red')
+
+            fname = '_tmp%05d.png'%int(j) 
+            plt.tight_layout()  
+            plt.savefig(fname)
+            plt.clf() 
+            plt.cla() 
+            plt.close()
+            fig, (ax, ax1) = plt.subplots(2,1, figsize = (5.5,10)) 
+            ax1.plot(frames, pressures, lw = 3, color = 'black')
+            ax1.set_ylabel('Pressures', color='black')
+            ax1.set_xlabel('Frames')
+            ax2 = ax1.twinx()
+            ax2.plot(frames, guesses, 'blue')
+            ax2.set_ylabel('Guess Pressure', color='blue')
+            ax2.tick_params('y', colors='blue')
+
+        fps = 1
+        os.system("rm movie_cell_guess.mp4")
+        os.system("ffmpeg -r "+str(fps)+" -b 1800 -i _tmp%05d.png movie_cell_guess.mp4")
+        os.system("rm _tmp*.png")
+
+        plt.cla()
+        plt.clf()
+        plt.close()
+
+    def plot_histogram(self, fig, ax, ax1, ax2, colonies):
+
+        all_tensions, all_radii, all_pressures = self.all_tensions_and_radius_and_pressures(colonies)
+        max_ten, min_ten, max_pres, min_pres = max(all_tensions), min(all_tensions), max(all_pressures), min(all_pressures)
+        # _, max_ten, min_ten = self.get_min_max_by_outliers_iqr(all_tensions)
+        # _, max_pres, min_pres = self.get_min_max_by_outliers_iqr(all_pressures, type = 'pressure')
+
+        frames = [i for i in colonies.keys()]
+
+        ensemble_tensions, ensemble_pressures = [], []
+
+        for j, i in enumerate(frames):
+            this_colony_dict = dict((k, v) for k, v in colonies.items() if int(i) + 1 >int(k) >= int(i)) 
+            try:
+                this_tensions, this_radii, this_pressures = self.all_tensions_and_radius_and_pressures(this_colony_dict)
+                ensemble_tensions.append(this_tensions)
+                ensemble_pressures.append(this_pressures)                                  
+            except:
+                frames = frames[0:j]
+
+        for j, i in enumerate(frames):
+
+            edges = colonies[str(i)].tot_edges
+            ax.set(xlim = [0,1030], ylim = [0,1030], aspect = 1)
+            # ax1.set(xlim = [0,31], ylim = [min_pres, max_pres])
+
+            [e.plot(ax) for e in edges]
+
+            # the histogram of the data
+            n, bins, patches = ax1.hist(ensemble_tensions[j], 25, range = (min_ten, max_ten))
+            bin_centers = 0.5 * (bins[:-1] + bins[1:])
+
+            # scale values to interval [0,1]
+            col = bin_centers - min(bin_centers)
+            col /= max(col)
+
+            for c, p in zip(col, patches):
+                plt.setp(p, 'facecolor', cm.viridis(c))
+
+            # the histogram of the data
+            n, bins, patches = ax2.hist(ensemble_pressures[j], 25, range = (min_pres, max_pres))
+            bin_centers = 0.5 * (bins[:-1] + bins[1:])
+
+            # scale values to interval [0,1]
+            col = bin_centers - min(bin_centers)
+            col /= max(col)
+
+            for c, p in zip(col, patches):
+                plt.setp(p, 'facecolor', cm.viridis(c))
+
+            ax1.set_xlabel('Tension')
+            ax2.set_xlabel('Pressure')
+            ax1.set_ylabel('Frequency')
+            ax2.set_ylabel('Frequency')
+
+            fname = '_tmp%05d.png'%int(j) 
+            plt.tight_layout()  
+            plt.savefig(fname)
+            plt.clf() 
+            plt.cla() 
+            plt.close()
+            fig, (ax, ax1, ax2) = plt.subplots(3,1, figsize = (5.5,15)) 
+        fps = 1
+        os.system("rm movie_histograms.mp4")
+        os.system("ffmpeg -r "+str(fps)+" -b 1800 -i _tmp%05d.png movie_histograms.mp4")
+        os.system("rm _tmp*.png")
+
+        plt.cla()
+        plt.clf()
+        plt.close()
+
+    def get_repeat_edge(self, colonies):
+        labels = []
+        for t, v in colonies.items():    
+            labels.append([e.label for e in v.tot_edges if e.label != []])
+
+        repeat_edge_labels = set(labels[0]).intersection(*labels)
+        return list(repeat_edge_labels)
+
+    def simple_plot_all_edges(self, fig, ax, colonies):
+
+        labels = self.get_repeat_edge(colonies)
+
+        tensions, frames = [], []
+        ax.set_xlabel('Frames')
+        ax.set_ylabel('Tensions')
+        ax.xaxis.set_major_locator(plt.MaxNLocator(12))
+        ax.set(xlim = [0,31])
+
+        for lab in labels:
+            for t, v in colonies.items():
+                tensions.append([e.tension for e in v.tot_edges if e.label == lab][0])
+                frames.append(int(t))
+            ax.plot(frames, tensions, '.', color = cm.viridis(min(frames)/31))
+
+        fname = '_tmp%05d.png'%int(min(frames) -1) 
+        plt.tight_layout()  
+        plt.savefig(fname)
+
+        new_colony_range = dict((k, v) for k, v in colonies.items() if int(k) > min(frames))
+        if new_colony_range != {}:
+            self.simple_plot_all_edges(fig, ax, new_colony_range)
+
+
+
+
+    def plot_all_edges(self, fig, ax, ax1, colonies, index = None, old_labels = None, counter = None, tensions = None, frames = None):
+
+        labels = self.get_repeat_edge(colonies)
+
+        if tensions == None and frames == None:
+            tensions, frames = [], []
+        ax1.set(xlim = [0,1030], ylim = [0,1030], aspect = 1)
+        ax.set_xlabel('Frames')
+        ax.set_ylabel('Tensions')
+        ax.xaxis.set_major_locator(plt.MaxNLocator(12))
+        ax.set(xlim = [0,31])
+
+        if index == None:
+            index = 0
+
+        for lab in labels:
+            if old_labels == None or lab not in old_labels:
+                current_frames, current_tensions = [], []
+                for t, v in colonies.items():
+                    current_tensions.append([e.tension for e in v.tot_edges if e.label == lab][0])
+                    current_frames.append(int(t))
+                    tensions.append([e.tension for e in v.tot_edges if e.label == lab][0])
+                    frames.append(int(t))
+                ax.plot(frames, tensions, '.', color = 'black')
+                ax.plot(current_frames, current_tensions, 'ok', color = 'yellow')
+                #ax.plot(current_frames, current_tensions, 'ok', color = cm.viridis(lab/ max(labels)))
+                count = 0
+                for t,v in colonies.items():
+                    ax1.set(xlim = [0,1030], ylim = [0,1030], aspect = 1)
+                    [e.plot(ax1) for e in v.tot_edges]
+                    [e.plot(ax1, color = 'red', lw = 3) for e in v.tot_edges if e.label == lab]
+                    ax.plot(current_frames[count], current_tensions[count], 'ok', color = 'red')
+                    count += 1
+
+                    fname = '_tmp%05d.png'%int(index) 
+                    plt.tight_layout()  
+                    plt.savefig(fname)
+                    index += 1
+                    plt.clf() 
+                    plt.cla() 
+                    plt.close()
+                    fig, (ax1, ax) = plt.subplots(2,1, figsize = (5.5,10))
+                    ax.set_xlabel('Frames')
+                    ax.set_ylabel('Tensions')
+                    ax.xaxis.set_major_locator(plt.MaxNLocator(12))
+                    ax.set(xlim = [0,31])
+                    ax.plot(frames, tensions, '.', color = 'black')
+                    ax.plot(current_frames, current_tensions, 'ok', color = 'yellow')
+                    #ax.plot(current_frames, current_tensions, 'ok', color = cm.viridis(lab/ max(labels)))
+            #[e.plot(ax1, color = cm.viridis(lab/max(labels)), lw = 3) for e in v.tot_edges if e.label == lab]
+
+        if counter == None:
+            counter = 1
+        new_colony_range = dict((k, v) for k, v in colonies.items() if int(k) > counter)
+        if new_colony_range != {}:
+            old_labels = labels
+            self.plot_all_edges(fig, ax, ax1, new_colony_range, index, old_labels, counter + 1, tensions, frames)
+
+    def make_all_edge_movie(self, fig, ax, ax1, colonies):
+        ax1.set(xlim = [0,1030], ylim = [0,1030], aspect = 1)
+        self.plot_all_edges(fig, ax, ax1, colonies)
+        fps = 1
+        os.system("rm movie_all_edges.mp4")
+        os.system("ffmpeg -r "+str(fps)+" -b 1800 -i _tmp%05d.png movie_all_edges.mp4")
+        os.system("rm _tmp*.png")
+
+        plt.cla()
+        plt.clf()
+        plt.close()
+
+    def make_all_edge_movie_simple(self, fig, ax, colonies):
+        self.simple_plot_all_edges(fig, ax, colonies)
+
+        fps = 1
+        os.system("rm movie_all_edges_simple.mp4")
+        os.system("ffmpeg -r "+str(fps)+" -b 1800 -i _tmp%05d.png movie_all_edges_simple.mp4")
+        os.system("rm _tmp*.png")
+
+        plt.cla()
+        plt.clf()
+        plt.close()
 
     def get_min_max_by_outliers_iqr(self, ys, type = None):
         """
