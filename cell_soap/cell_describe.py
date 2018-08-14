@@ -16,6 +16,9 @@ from collections import defaultdict
 import pylab
 import scipy
 from scipy.optimize import basinhopping
+import seaborn as sns
+import pandas as pd
+import random
 #from Dave_cell_find import find_all_cells, cells_on_either_side, trace_cell_cycle
 
 class node:
@@ -879,11 +882,12 @@ class colony:
         bnds = self.make_bounds(edges)
 
         x0 = self.initial_conditions(edges)
+
+
         
 
         if type(edges[0]) == edge:
             cons = [{'type': 'eq', 'fun':self.equality_constraint_tension}]
-            print(edges[0].guess_tension)
             # x0 = np.ones(len(edges))*0.002
             if not edges[0].guess_tension:
 
@@ -894,10 +898,17 @@ class colony:
 
                 sol = minimize(self.objective_function_tension, x0, method = 'L-BFGS-B', bounds = bnds, options = {**kwargs})
             else:
+                # for k, xxx in enumerate(x0):
+                #     x0[k] = 0.2
                 if x0.count(x0[0]) == len(x0):
-                    print('why')
+
+                    for k, xxx in enumerate(x0):
+                        x0[k] = random.randint(0,101)/100
+                    print('Initial Tension guess is', x0)
+
                     minimizer_kwargs = {"method": "L-BFGS-B", "bounds" : bnds} # used only BFGS and no bounds before
-                    sol = basinhopping(self.objective_function_tension, x0, minimizer_kwargs=minimizer_kwargs, niter=150, disp = True)
+                    print('Trying basin hopping')
+                    sol = basinhopping(self.objective_function_tension, x0, minimizer_kwargs=minimizer_kwargs, niter=100, disp = True)
                     #sol = minimize(self.objective_function_tension, x0, method = 'L-BFGS-B', bounds = bnds, options = {**kwargs})
                     # print("global minimum: x = %.4f, f(x0) = %.4f" % (sol.x, sol.fun))
                 else:
@@ -909,14 +920,19 @@ class colony:
                 #sol = minimize(self.objective_function_pressure, x0, method = 'SLSQP', bounds = bnds, constraints = cons)
 
                 # This is correct, use this
-                # sol = minimize(self.objective_function_pressure, x0, method = 'SLSQP', constraints = cons)
-                sol = minimize(self.objective_function_pressure, x0, method = 'L-BFGS-B', options = {**kwargs})
+                #sol = minimize(self.objective_function_pressure, x0, method = 'L-BFGS-B', constraints = cons)
+                sol = minimize(self.objective_function_pressure, x0, method = 'L-BFGS-B', bounds = bnds,  options = {**kwargs})
             else:
-                print(x0)
+                # for k, xxx in enumerate(x0):
+                #     x0[k] = 0.001
                 if x0.count(x0[0]) == len(x0):
-                    print('why')
-                    minimizer_kwargs = {"method": "L-BFGS-B"}
-                    sol = basinhopping(self.objective_function_pressure, x0, minimizer_kwargs=minimizer_kwargs, niter=150, disp = True)
+
+                    # for k, xxx in enumerate(x0):
+                    #     x0[k] = random.randint(0,101)/10000
+                    print('Initial pressure guess is', x0)
+                    minimizer_kwargs = {"method": "L-BFGS-B", "bounds" : bnds}
+                    print('Trying basin hopping')
+                    sol = basinhopping(self.objective_function_pressure, x0, minimizer_kwargs=minimizer_kwargs, niter=100, disp = True)
                     #sol = minimize(self.objective_function_pressure, x0, method = 'L-BFGS-B', bounds = bnds, options = {**kwargs})
                     # print("global minimum: x = %.4f, f(x0) = %.4f" % (sol.x, sol.fun))
                 else:
@@ -984,7 +1000,7 @@ class colony:
                     guess = (guess_a + guess_b)/2 if guess_a != 0 and guess_b != 0 else\
                             guess_a if guess_b == 0 and guess_a != 0 else\
                             guess_b if guess_a == 0 and guess_b != 0 else\
-                            1e-5
+                            0.2
                     I.append(guess)
                     # Update the guess tension used
                     e_or_c.guess_tension = I[j]
@@ -995,7 +1011,14 @@ class colony:
                 if not e_or_c.guess_pressure:
                     adj_press = self.get_adjacent_pressures(e_or_c)
                     guess = np.mean(adj_press) if adj_press != [] else 0
-                    [I.append(guess) if guess != 0 else I.append(1e-6)]
+
+                    edges_in_this_cell = [e for e in e_or_c.edges]
+                    tension_of_edges = [e.tension for e in edges_in_this_cell]
+                    radii_of_edges = [e.radius for e in edges_in_this_cell]
+                    ratio_of_tension_to_radius = [x/y for x, y in zip(tension_of_edges, radii_of_edges)]
+                    guess2 = np.mean(ratio_of_tension_to_radius)
+
+                    [I.append(guess) if guess != 0 else I.append(guess2)]
                     # I.append(0)
                     # Upodate guess pressure used
                     e_or_c.guess_pressure = I[j]
@@ -2208,7 +2231,6 @@ class manual_tracing_multiple:
 
         for node in now_nodes:
             if node.label == []:
-                print(count, count_edge)
                 node.label = count
                 count += 1
                 for e in node.edges:
@@ -2256,6 +2278,19 @@ class manual_tracing_multiple:
                 if np.linalg.norm(np.subtract(cell.centroid(), closest_new_cell.centroid())) < 100: #was 60 before
                     closest_new_cell.label = cell.label
 
+        max_label = max([c.label for c in now_cells if c.label != []])
+        if max_label > 99:
+            count = max_label + 1
+        else:
+            count = 100
+
+        for j, cc in enumerate(now_cells):
+            if cc.label == []:
+                print('New cell label is', count)
+                now_cells[j].label = count 
+                count += 1
+
+
         return now_cells
 
 
@@ -2274,15 +2309,15 @@ class manual_tracing_multiple:
 
         for cell in now_cells:
             if cell.label != []:
-                match_old_cell = [old for old in old_cells if old.label == cell.label][0]
-                cell.guess_pressure = match_old_cell.pressure
+                if cell.label in [old.label for old in old_cells]:
+                    match_old_cell = [old for old in old_cells if old.label == cell.label][0]
+                    cell.guess_pressure = match_old_cell.pressure
         
         for ed in old_edges:
             label = ed.label
             for new_ed in edges2:
                 if new_ed.label == label:
                     if new_ed.guess_tension == []:
-                        print('assigned')
                         new_ed.guess_tension = ed.tension
 
         # for k,v in combined_dict.items():
@@ -2969,15 +3004,16 @@ class manual_tracing_multiple:
             for t, v in colonies.items():
                 tensions.append([e.tension for e in v.tot_edges if e.label == lab][0])
                 frames.append(int(t))
-            ax.plot(frames, tensions, '.', color = cm.viridis(min(frames)/31))
+            ax.plot(frames, tensions)
+            # ax.plot(frames, tensions, lw = 3, color = cm.viridis(min(frames)/31))
 
         fname = '_tmp%05d.png'%int(min(frames) -1) 
         plt.tight_layout()  
         plt.savefig(fname)
 
         new_colony_range = dict((k, v) for k, v in colonies.items() if int(k) > min(frames))
-        if new_colony_range != {}:
-            self.simple_plot_all_edges(fig, ax, new_colony_range)
+        # if new_colony_range != {}:
+        #     self.simple_plot_all_edges(fig, ax, new_colony_range)
 
 
 
@@ -3005,6 +3041,7 @@ class manual_tracing_multiple:
                     current_frames.append(int(t))
                     tensions.append([e.tension for e in v.tot_edges if e.label == lab][0])
                     frames.append(int(t))
+                #ax.plot(frames, tensions, lw = 1, color = 'black')
                 ax.plot(frames, tensions, '.', color = 'black')
                 ax.plot(current_frames, current_tensions, 'ok', color = 'yellow')
                 #ax.plot(current_frames, current_tensions, 'ok', color = cm.viridis(lab/ max(labels)))
@@ -3028,6 +3065,7 @@ class manual_tracing_multiple:
                     ax.set_ylabel('Tensions')
                     ax.xaxis.set_major_locator(plt.MaxNLocator(12))
                     ax.set(xlim = [0,31])
+                    #ax.plot(frames, tensions, lw = 1, color = 'black')
                     ax.plot(frames, tensions, '.', color = 'black')
                     ax.plot(current_frames, current_tensions, 'ok', color = 'yellow')
                     #ax.plot(current_frames, current_tensions, 'ok', color = cm.viridis(lab/ max(labels)))
@@ -3051,6 +3089,192 @@ class manual_tracing_multiple:
         plt.cla()
         plt.clf()
         plt.close()
+
+    def plot_all_cells(self, ax, colonies):
+
+        all_tensions, all_radii, all_pressures = self.all_tensions_and_radius_and_pressures(colonies)      
+        _, max_pres, min_pres = self.get_min_max_by_outliers_iqr(all_pressures, type = 'pressure')
+
+        frames = [i for i in colonies.keys()]
+
+        
+        pressures, areas, perimeters, change_in_area = [], [], [], [0]
+        for j, i in enumerate(frames):
+            cells = colonies[str(i)].cells
+            pres = [c.pressure for c in cells if c.label == cell_label]
+            if pres != []:
+                pressures.append(pres[0])
+            else:
+                frames = frames[0:j]
+
+
+        ax1.plot(frames, pressures, lw = 3, color = 'black')
+        ax1.set_ylabel('Pressures', color='black')
+        ax1.set_xlabel('Frames')
+
+
+        for j, i in enumerate(frames):
+            cells = colonies[str(i)].cells
+            edges = colonies[str(i)].tot_edges
+            ax.set(xlim = [0,1030], ylim = [0,1030], aspect = 1)
+            # ax1.set(xlim = [0,31], ylim = [min_pres, max_pres])
+            ax1.xaxis.set_major_locator(plt.MaxNLocator(12))
+
+            ax1.set(xlim = [0,31])
+
+            [e.plot(ax) for e in edges]
+            current_cell = [c for c in cells if c.label == cell_label][0]
+            # ax.plot(current_cell, color = 'red')
+            [current_cell.plot(ax, color = 'red' )]
+
+
+            x = [n.loc[0] for n in current_cell.nodes]
+            y = [n.loc[1] for n in current_cell.nodes]
+            ax.fill(x, y, c= 'red', alpha = 0.2)
+            for e in current_cell.edges:
+                e.plot_fill(ax, color = 'red', alpha = 0.2)
+
+            ax1.plot(i, current_cell.pressure, 'ok', color = 'red')
+            ax2.plot(i, current_cell.perimeter(), 'ok', color = 'red')
+            ax3.plot(i, current_cell.area(), 'ok', color = 'red')
+            ax4.plot(i, change_in_area[j], 'ok', color = 'red')
+
+            fname = '_tmp%05d.png'%int(j) 
+            plt.tight_layout()  
+            plt.savefig(fname)
+            plt.clf() 
+            plt.cla() 
+            plt.close()
+            fig, (ax, ax1) = plt.subplots(2,1, figsize = (5.5,15)) 
+            #fig, (ax, ax1) = plt.subplots(1,2, figsize = (14,6)) 
+            # ax.set(xlim = [0,1030], ylim = [0,1030], aspect = 1)
+            # ax1.set(xlim = [frames[0], frames[-1]], ylim = [0, 0.004])
+            ax1.plot(frames, pressures, lw = 3, color = 'black')
+            ax1.set_ylabel('Pressures', color='black')
+            ax1.set_xlabel('Frames')
+            ax2 = ax1.twinx()
+            ax2.plot(frames, perimeters, 'blue')
+            ax2.set_ylabel('Perimeters', color='blue')
+            ax2.tick_params('y', colors='blue')
+
+            ax3.plot(frames, areas, lw = 3, color = 'black')
+            ax3.set_ylabel('Areas', color='black')
+            ax3.set_xlabel('Frames')
+            ax4 = ax3.twinx()
+            ax4.plot(frames, change_in_area, 'blue')
+            ax4.set_ylabel('Change in Area', color='blue')
+            ax4.tick_params('y', colors='blue')
+
+    def seaborn_plot(self, ax, colonies, data = None, cell_data = None, old_labels = None, old_cell_labels = None, counter = None):
+
+        #labels = self.get_repeat_edge(colonies)
+        initial_index = [int(k) for k,v in colonies.items()][0]
+        labels = [e.label for e in colonies[str(initial_index)].tot_edges if e.label != []]
+        cell_labels = [c.label for c in colonies[str(initial_index)].cells if c.label != []]
+
+        if data is None:
+            data = {'Index_Edge_Labels': [], 'Index_Time':[], 'Edge_Labels': [], 'Tensions': [], 'Time': [], 'Radius': [], 'Straight_Length': [], 'Total_connected_edge_length':[], 'Change_in_length': [], 'Change_in_connected_edge_length': [],'Binary_length_change': [] , 'Binary_connected_length_change':[]}
+            edges_dataframe = pd.DataFrame(data)
+            edges_dataframe.set_index(['Index_Edge_Labels','Index_Time'])
+            #edges_dataframe.set_index(['Index_Edge_Labels', 'Index_Time'], inplace = True)
+
+        if cell_data is None:
+            cell_data = {'Index_Cell_Labels': [], 'Index_Cell_Time':[], 'Cell_Labels': [], 'Pressures': [], 'Cell_Time': [], 'Area': [], 'Perimeter': [], 'Change_in_area': [], 'Binary_area_change': [], 'Change_in_perimeter': [], 'Binary_perim_change': []}
+            cells_dataframe = pd.DataFrame(cell_data)
+            cells_dataframe.set_index(['Index_Cell_Labels', 'Index_Cell_Time'], inplace = True)
+
+
+        for lab in labels:
+            if old_labels == None or lab not in old_labels:
+                edge_index = 0
+                lengths, con_lengths = [], []
+                for t, v in colonies.items():
+                    if [e.tension for e in v.tot_edges if e.label == lab] != []:
+                        data['Edge_Labels'].append(lab)
+                        data['Index_Edge_Labels'].append(lab)
+                        data['Tensions'].append([e.tension for e in v.tot_edges if e.label == lab][0])
+                        current_edge = [e for e in v.tot_edges if e.label == lab][0]
+                        con_edges = [e for n in current_edge.nodes for e in n.edges if e != current_edge]
+                        con_lengths.append(sum([e.straight_length for e in con_edges]))
+                        data['Total_connected_edge_length'].append(sum([e.straight_length for e in con_edges]))
+                        data['Time'].append(int(t))
+                        data['Index_Time'].append(int(t))
+                        data['Radius'].append([e.radius for e in v.tot_edges if e.label == lab][0])
+                        [lengths.append([e.straight_length for e in v.tot_edges if e.label == lab][0])]
+                        data['Straight_Length'].append([e.straight_length for e in v.tot_edges if e.label == lab][0])
+                        if edge_index == 0:
+                            data['Change_in_length'].append(0)
+                            data['Change_in_connected_edge_length'].append(0)
+                            data['Binary_length_change'].append('Initial Length')
+                            data['Binary_connected_length_change'].append('Initial Connected Edge Length')
+                            edge_index += 1
+                        else:
+                            data['Change_in_length'].append(lengths[edge_index] - lengths[edge_index - 1])
+                            data['Change_in_connected_edge_length'].append(con_lengths[edge_index] - con_lengths[edge_index - 1])
+                            if lengths[edge_index] > lengths[edge_index - 1]:
+                                data['Binary_length_change'].append('Increasing Length')
+                            else:
+                                data['Binary_length_change'].append('Decreasing Length')
+                            if con_lengths[edge_index] > con_lengths[edge_index - 1]:
+                                data['Binary_connected_length_change'].append('Increasing Connected Edge Length')
+                            else:
+                                data['Binary_connected_length_change'].append('Decreasing Connected Edge Length')
+
+                            edge_index += 1
+
+
+        for cell_lab in cell_labels:
+            if old_cell_labels == None or cell_lab not in old_cell_labels:
+                cell_index = 0
+                areas, perims = [], []
+                for t, v in colonies.items():
+                    if [c.pressure for c in v.cells if c.label == cell_lab] != []:
+                        cell_data['Cell_Labels'].append(cell_lab)
+                        cell_data['Index_Cell_Labels'].append(cell_lab)
+                        cell_data['Pressures'].append([c.pressure for c in v.cells if c.label == cell_lab][0])
+                        cell_data['Cell_Time'].append(int(t))
+                        cell_data['Index_Cell_Time'].append(int(t))
+                        [areas.append([c.area() for c in v.cells if c.label == cell_lab][0])]
+                        [perims.append([c.perimeter() for c in v.cells if c.label == cell_lab][0])]
+                        if cell_index == 0:
+                            cell_data['Change_in_area'].append(0)
+                            cell_data['Binary_area_change'].append('Initial Area')
+                            cell_data['Change_in_perimeter'].append(0)
+                            cell_data['Binary_perim_change'].append('Initial Perimeter')
+                            cell_index += 1
+                        else:
+                            cell_data['Change_in_area'].append(areas[cell_index] - areas[cell_index - 1])
+                            cell_data['Change_in_perimeter'].append(perims[cell_index] - perims[cell_index - 1])
+                            if areas[cell_index] > areas[cell_index - 1]:
+                                cell_data['Binary_area_change'].append('Increasing Area')
+                            else:
+                                cell_data['Binary_area_change'].append('Decreasing Area')
+
+                            if perims[cell_index] > perims[cell_index - 1]:
+                                cell_data['Binary_perim_change'].append('Increasing Perimeter')
+                            else:
+                                cell_data['Binary_perim_change'].append('Decreasing Perimeter')
+                            cell_index += 1
+
+                        cell_data['Area'].append([c.area() for c in v.cells if c.label == cell_lab][0])
+                        cell_data['Perimeter'].append([c.perimeter() for c in v.cells if c.label == cell_lab][0])
+
+
+
+        if counter == None:
+            counter = 1
+        new_colony_range = dict((k, v) for k, v in colonies.items() if int(k) > counter)
+        if new_colony_range != {}:
+            old_labels = labels
+            old_cell_labels = cell_labels
+            self.seaborn_plot(ax,  new_colony_range, data, cell_data, old_labels, old_cell_labels,  counter + 1)
+            edges_dataframe = pd.DataFrame(data)
+            edges_dataframe.set_index(['Index_Edge_Labels', 'Index_Time'], inplace = True)
+            cells_dataframe = pd.DataFrame(cell_data)
+            cells_dataframe.set_index(['Index_Cell_Labels', 'Index_Cell_Time'], inplace = True)
+            return edges_dataframe, cells_dataframe
+
+        
 
     def make_all_edge_movie_simple(self, fig, ax, colonies):
         self.simple_plot_all_edges(fig, ax, colonies)
