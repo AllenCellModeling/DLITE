@@ -9,6 +9,8 @@ import collections
 import scipy.linalg as linalg 
 from scipy.optimize import minimize
 from matplotlib import cm
+import itertools
+import math
 import os, sys
 import matplotlib.patches as mpatches
 import matplotlib.animation as manimation
@@ -19,7 +21,95 @@ from scipy.optimize import basinhopping
 import seaborn as sns
 import pandas as pd
 import random
-#from Dave_cell_find import find_all_cells, cells_on_either_side, trace_cell_cycle
+#from Dave_cell_find import find_all_cells, cells_on_either_side, Cycle_tracer
+# To go back to my cycle find, change 'find_all_cells' to 'cycle_finder' and also change the way the angle is calculated
+
+
+class CycleTracer:
+    """Trace around a network to discover a cell cycle
+    
+    Typical use goes like
+    >>> cell_cycle = CycleTracer(edge, 1)
+    >>> cycle_nodes, cycle_edges = cell_cycle.trace_cycle(10)
+    """
+    def __init__(self, edge, direction):
+        """Remember the edge where you start and the direction
+        """
+        self.start_node = edge.node_a
+        self.current_node = edge.node_b
+        # Cycle is [(node, edge_list_under_consideration), ...]
+        self.cycle = [(self.start_node, [edge])]
+        # Direction choice
+        assert direction in [-1,1]
+        if direction==1:
+            self.dir = 0
+        elif direction==-1:
+            self.dir = -1
+    
+    @staticmethod
+    def _other_node(edge, node):
+        """The other node on an edge"""
+        other_node = [n for n in edge.nodes if n is not node][0]
+        return other_node
+
+    @staticmethod
+    def _sort_edges(edge, node):
+        """Return a list of edges on a node, sorted by angle from 
+        smallest to largest, relative to a given edge
+        """
+
+        other_edges = [e for e in node.edges if e is not edge]
+        edge_angles = [edge.edge_angle(e) for e in other_edges]
+        sorted_edges = [(a, e) for a, e in sorted(zip(edge_angles, other_edges))]
+        sorted_edges = [e for a,e in sorted_edges]
+        return sorted_edges
+    
+    def _pop_edge(self):
+        """We hit a dead end and need to remove an edge 
+        from the candidacy for inclusion in the cycle
+        """
+        self.cycle[-1][1].pop(self.dir)
+        # and if that means there are no more edges on this node, recurse
+        if len(self.cycle[-1][1]) == 0:
+            self.cycle.pop()
+            if len(self.cycle)>=2:  # don't eat the first node
+                self._pop_edge() 
+        return
+    
+    def _follow_to_next_edge(self):
+        """Trace along to the next possible edge, add it to the cycle
+        """
+        #[print(e) for e in self.cycle]
+        #print("\n")
+        prior_node = self.cycle[-1][0]
+        next_edge = self.cycle[-1][1][self.dir]
+        next_node = [n for n in next_edge.nodes if n is not prior_node][0]
+        next_edges = self._sort_edges(next_edge, next_node)
+        if next_edges == []: #hit dead end
+            self._pop_edge()
+            return
+        self.cycle.append((next_node, next_edges))
+        self.current_node = next_node
+        return
+
+    def trace_cycle(self, lim=10):
+        """Trace the cycle, of length up to lim
+        """
+        # Loop
+
+        while self.start_node is not self.current_node and 1<=len(self.cycle)<lim:
+            print(len(self.cycle), self.start_node, self.current_node)
+            self._follow_to_next_edge()
+        # If you didn't find a cycle    
+        if self.start_node is not self.current_node:
+            self.nodes = None  # no cycle found
+            self.edges = None  # no cycle found
+        else:  # or if you did
+            self.cycle.pop()  # last entry was dupe of first
+            self.nodes = [node for node, edges in self.cycle]
+            self.edges = [edges[self.dir] for node, edges in self.cycle]
+        return self.nodes, self.edges
+
 
 class node:
     def __init__(self, loc):
@@ -122,6 +212,7 @@ class edge:
         self._tension = []
         self._guess_tension = []
         self._label = []
+        self._center_of_circle = []
 
     # def __str__(self):
     #     return "["+"   ->   ".join([str(n) for n in self.nodes])+"]"
@@ -136,8 +227,13 @@ class edge:
 
     @cells.setter
     def cells(self, cell):
+        check = 0
         if cell not in self._cells:
-            self._cells.append(cell)
+            for c in self._cells:
+                if len(set(c.edges).intersection(set(cell.edges))) == len(set(cell.edges)):
+                    check = 1
+            if check == 0:
+                self._cells.append(cell)
 
     @property    
     def label(self):
@@ -160,6 +256,14 @@ class edge:
             self.node_a.remove_edge(self)
         if node == self.node_b:
             self.node_b.remove_edge(self)
+
+    @property
+    def center_of_circle(self):
+        return self._center_of_circle
+
+    @center_of_circle.setter
+    def center_of_circle(self, center):
+        self._center_of_circle = center
 
     @property
     def tension(self):
@@ -330,8 +434,14 @@ class edge:
         ----------
         Cell1, Cell2
 
-        Returns which of the 2 cells the edge (self) is curving into
+        Returns which of the 2 cells the edge (self) is curving out of
         """
+
+        def py_ang(v1, v2):
+            """ Returns the angle in degrees between vectors 'v1' and 'v2'    """
+            cosang = np.dot(v1, v2)
+            sinang = la.norm(np.cross(v1, v2))
+            return np.rad2deg(np.arctan2(sinang, cosang))
 
         perp_a, perp_b = self.unit_vectors()
 
@@ -341,39 +451,114 @@ class edge:
         edge1 = [e for e in cell1.edges if e.node_a == self.node_a or e.node_b == self.node_a if e!= self][0]
         edge2 = [e for e in cell2.edges if e.node_a == self.node_a or e.node_b == self.node_a if e!= self][0]
 
-        # find the unit vectors associated with these edges 
-        edge1_p_a, edge1_p_b = edge1.unit_vectors()
-        edge2_p_a, edge2_p_b = edge2.unit_vectors()
+        # NEW method
 
-        # choose the correct unit vector in edge1 coming into node_a
-        if edge1.node_a == self.node_a:
-            edge1_v = edge1_p_a
-        else:
-            edge1_v = edge1_p_b
+        centroid_cell1 = list(cell1.centroid())
+        centroid_cell2 = list(cell2.centroid())
+        n_a = list(self.node_a.loc)
+        n_b = list(self.node_b.loc)
 
-        # choose the correct unit vector in edge2 coming into node_a
-        if edge2.node_a == self.node_a:
-            edge2_v = edge2_p_a
+        midpoint = [(x + y)/2 for x,y in zip(self.node_a.loc, self.node_b.loc)]
+        actual_co_ord = [np.mean(self.x_co_ords), np.mean(self.y_co_ords)]
+
+
+        distance1 = math.sqrt( ((centroid_cell1[0]-self.center_of_circle[0])**2)+((centroid_cell1[1]-self.center_of_circle[1])**2) )
+        distance2 = math.sqrt( ((centroid_cell2[0]-self.center_of_circle[0])**2)+((centroid_cell2[1]-self.center_of_circle[1])**2) )
+        print(distance1, distance2)
+        if distance1 > distance2:
+            return cell2
+        elif distance2 > distance1:
+            return cell1
         else:
-            edge2_v = edge2_p_b
+            print('how')
+
+        # v1 = [(x - y) for x, y in zip(midpoint, n_a)]
+        # v2 = [(x - y) for x, y in zip(actual_co_ord, n_a)]
+
+        # # # find the unit vectors associated with these edges 
+        # edge1_p_a, edge1_p_b = edge1.unit_vectors()
+        # edge2_p_a, edge2_p_b = edge2.unit_vectors()
+
+        # # choose the correct unit vector in edge1 coming into node_a
+        # if edge1.node_a == self.node_a:
+        #     edge1_v = edge1_p_a
+        # else:
+        #     edge1_v = edge1_p_b
+
+        # # choose the correct unit vector in edge2 coming into node_a
+        # if edge2.node_a == self.node_a:
+        #     edge2_v = edge2_p_a
+        # else:
+        #     edge2_v = edge2_p_b
+
+        # angle1 = py_ang(edge1_v, v1)
+        # angle2 = py_ang(edge1_v, v2)
+        # if angle1 > angle2:
+        #     return cell2
+        # elif angle2 > angle1:
+        #     return cell1
+        # else:
+        #     print(angle1, angle2, angle1 > angle2, angle2 > angle1)
+        #     print('really how')
+
+
+        # # print(len(self.x_co_ords))
+        # # #actual_co_ord = [self.x_co_ords[2], self.y_co_ords[2]]
+
+        #     distance_between_cell1_midpoint = math.sqrt( ((centroid_cell1[0]-midpoint[0])**2)+((centroid_cell1[1]-midpoint[1])**2) )
+        #     distance_between_cell2_midpoint = math.sqrt( ((centroid_cell2[0]-midpoint[0])**2)+((centroid_cell2[1]-midpoint[1])**2) )
+        #     distance_between_cell1_actual_co_ord = math.sqrt( ((centroid_cell1[0]-actual_co_ord[0])**2)+((centroid_cell1[1]-actual_co_ord[1])**2) )
+        #     distance_between_cell2_actual_co_ord = math.sqrt( ((centroid_cell2[0]-actual_co_ord[0])**2)+((centroid_cell2[1]-actual_co_ord[1])**2) )
+        #     print(distance_between_cell1_actual_co_ord, distance_between_cell1_midpoint, distance_between_cell2_actual_co_ord, distance_between_cell2_midpoint)
+        #     if distance_between_cell1_actual_co_ord > distance_between_cell1_midpoint and distance_between_cell2_actual_co_ord < distance_between_cell2_midpoint:
+        #         return cell1
+        #     if distance_between_cell1_actual_co_ord < distance_between_cell1_midpoint and distance_between_cell2_actual_co_ord > distance_between_cell2_midpoint:
+        #         return cell2
+        #     else:
+        #         print('how')
+
+        # OLD METHOD
+
+        # angle1 = self.edge_angle(edge1)
+        # angle2 = self.edge_angle(edge2)
+
+        # ODLER METHOD
+
+        # # find the unit vectors associated with these edges 
+        # edge1_p_a, edge1_p_b = edge1.unit_vectors()
+        # edge2_p_a, edge2_p_b = edge2.unit_vectors()
+
+        # # choose the correct unit vector in edge1 coming into node_a
+        # if edge1.node_a == self.node_a:
+        #     edge1_v = edge1_p_a
+        # else:
+        #     edge1_v = edge1_p_b
+
+        # # choose the correct unit vector in edge2 coming into node_a
+        # if edge2.node_a == self.node_a:
+        #     edge2_v = edge2_p_a
+        # else:
+        #     edge2_v = edge2_p_b
 
         # Now we have 3 vectors - perp_a, edge1_v and edge2_v on 3 edges all coming into node_a 
         # to check convexivity, we get the angles between edge1_v and perp_a and between edge2_v and perp_a
 
-        cosang = np.dot(perp_a, edge1_v)
-        sinang = np.cross(perp_a, edge1_v)
-        angle1 = np.rad2deg(np.arctan2(sinang, cosang)) 
+        # cosang = np.dot(perp_a, edge1_v)
+        # sinang = np.cross(perp_a, edge1_v)
+        # angle1 = np.rad2deg(np.arctan2(sinang, cosang)) 
 
-        cosang = np.dot(perp_a, edge2_v)
-        sinang = np.cross(perp_a, edge2_v)
-        angle2 = np.rad2deg(np.arctan2(sinang, cosang))
+        # cosang = np.dot(perp_a, edge2_v)
+        # sinang = np.cross(perp_a, edge2_v)
+        # angle2 = np.rad2deg(np.arctan2(sinang, cosang))
+
+
 
         # the one with the larger angle difference should be the more convex cell
 
-        if abs(angle1) > abs(angle2):
-            return cell1
-        else:
-            return cell2 
+        # if abs(angle1) > abs(angle2):
+        #     return cell1
+        # else:
+        #     return cell2 
 
     def which_cell(self, list_of_edges, ty, max_iter):
         """
@@ -407,7 +592,7 @@ class edge:
             angle_node0 = max([n for n in angles1 if n<0], default = 9000)
         else:
             # min positive number from node 0
-            angle_node0 = min([n for n in angles1 if n>0], default = 9000)    
+            angle_node0 = min([n for n in angles1 if n>0], default = 9000)
 
         # Check that its not 9000
         if angle_node0 != 9000:
@@ -427,7 +612,7 @@ class edge:
             
                 # Call recursion algorithm
                 p = 1
-                cells = self.recursive_cycle_finder([self], edge1, 1, cell_nodes, cell_edges, p, max_iter)
+                cells = self.recursive_cycle_finder([self], edge1, ty, cell_nodes, cell_edges, p, max_iter)
             
             else:
                 # two edge cell
@@ -634,6 +819,9 @@ class colony:
         """
         [e.plot(ax) for e in self.cells]
 
+    def add_cell(self, cell):
+        self.cells.append(cell)
+
     @property
     def tension_matrix(self):
         return self._tension_matrix
@@ -679,8 +867,9 @@ class colony:
         [nodes.append(x) for cell in self.cells for edge in cell.edges for x in edge.nodes if x not in nodes]
         return nodes
 
+
     @staticmethod
-    def solve_constrained_lsq(A, type, B = None, Guess = None):
+    def solve_constrained_lsq(A, type, B = None):
         """
         Solve constrained least square system PX = Q. 
 
@@ -831,7 +1020,7 @@ class colony:
         return A
 
 
-    def calculate_tension(self, nodes = None, edges = None, **kwargs):
+    def calculate_tension(self, nodes = None, edges = None, solver = None, **kwargs):
         """
         Calls a solver to calculate tension. Cellfit paper used 
         (1) self.solve_constrained_lsq
@@ -845,7 +1034,8 @@ class colony:
         ## MAIN SOLVER
         # Used in cellfit paper
         A = self.make_tension_matrix(nodes, edges)
-        #tensions, P = self.solve_constrained_lsq(A, 0, None, Guess)
+        if solver == 'KKT':
+            tensions, P = self.solve_constrained_lsq(A, 0, None)
 
         # New scipy minimze solver
         if nodes == None:
@@ -855,13 +1045,14 @@ class colony:
             edges = self.tot_edges
 
         # Try scipy minimize 
-        sol = self.scipy_opt_minimze(edges, **kwargs)
+        if solver == None:
+            sol = self.scipy_opt_minimze(edges, **kwargs)
 
-        tensions = sol.x
+            tensions = sol.x
 
-        # Im setting P = [] because i dont get a P matrix when i do optimization. 
-        # Remember to remove this if we switch back to constrained_lsq
-        P = []
+            # Im setting P = [] because i dont get a P matrix when i do optimization. 
+            # Remember to remove this if we switch back to constrained_lsq
+            P = []
 
         # Add tensions to edge
         for j, edge in enumerate(edges):
@@ -869,7 +1060,7 @@ class colony:
 
         return tensions, P, A
 
-    def scipy_opt_minimze(self, edges, **kwargs):
+    def scipy_opt_minimze(self, edges, i =[0], **kwargs):
         """
         Calls minimize function from scipy optimize. 
         Parameters:
@@ -879,64 +1070,109 @@ class colony:
         variables and it will give a solution
         """
 
+        i[0]+=1 # mutable variable get evaluated ONCE
+
         bnds = self.make_bounds(edges)
 
         x0 = self.initial_conditions(edges)
-
-
         
 
         if type(edges[0]) == edge:
+            # Not using equality constraint, useful for redoing cellfit stuff
             cons = [{'type': 'eq', 'fun':self.equality_constraint_tension}]
             # x0 = np.ones(len(edges))*0.002
+
+            # Check if the first element is empty (which it shouldnt be)
             if not edges[0].guess_tension:
+                pass
 
-                #sol = minimize(self.objective_function_tension, x0, method = 'SLSQP', bounds = bnds, constraints = cons)
-
-                # This is correct, use this
+                # Use this for cellfit stuff
                 #sol = minimize(self.objective_function_tension, x0, method = 'SLSQP', constraints = cons)
 
-                sol = minimize(self.objective_function_tension, x0, method = 'L-BFGS-B', bounds = bnds, options = {**kwargs})
+                #sol = minimize(self.objective_function_tension, x0, method = 'L-BFGS-B', bounds = bnds, options = {**kwargs})
             else:
-                # for k, xxx in enumerate(x0):
-                #     x0[k] = 0.2
+                # Assign constant initial values if you want
+                for k, xxx in enumerate(x0):
+                    x0[k] = 0.2
+
+                # If all elements are the same, run basin hopping with random initial guess
                 if x0.count(x0[0]) == len(x0):
 
-                    for k, xxx in enumerate(x0):
-                        x0[k] = random.randint(0,101)/100
-                    print('Initial Tension guess is', x0)
+                    # Assign random initial guesses in range 0-1 upto 2 digits
+                    # for k, xxx in enumerate(x0):
+                    #     x0[k] = random.randint(0,101)/100
 
-                    minimizer_kwargs = {"method": "L-BFGS-B", "bounds" : bnds} # used only BFGS and no bounds before
+                    print('Initial Tension guess is', x0)
+                    
                     print('Trying basin hopping')
-                    sol = basinhopping(self.objective_function_tension, x0, minimizer_kwargs=minimizer_kwargs, niter=100, disp = True)
+                    # Run basin hopping
+                    minimizer_kwargs = {"method": "L-BFGS-B", "bounds" : bnds} # used only BFGS and no bounds before
+                    #sol = basinhopping(self.objective_function_tension, x0, minimizer_kwargs=minimizer_kwargs, niter=100, disp = True)
+
+                    # Run normal L-BFGS
                     #sol = minimize(self.objective_function_tension, x0, method = 'L-BFGS-B', bounds = bnds, options = {**kwargs})
-                    # print("global minimum: x = %.4f, f(x0) = %.4f" % (sol.x, sol.fun))
+
+                    # Run Cellfit stuff
+                    sol = minimize(self.objective_function_tension, x0, method = 'SLSQP', constraints = cons)
                 else:
-                    sol = minimize(self.objective_function_tension, x0, method = 'L-BFGS-B', bounds = bnds, options = {**kwargs})
+                    # Run normal L-BFGS
+                    #sol = minimize(self.objective_function_tension, x0, method = 'L-BFGS-B', bounds = bnds, options = {**kwargs})
+
+                    # Run Cellfit stuff
+                    sol = minimize(self.objective_function_tension, x0, method = 'SLSQP', constraints = cons)
         else:
+            # Constraint for cellfit paper
             cons = [{'type': 'eq', 'fun':self.equality_constraint_pressure}]
             # x0 = np.zeros(len(edges))
-            if not edges[0].guess_pressure and edges[0].guess_pressure != 0:
-                #sol = minimize(self.objective_function_pressure, x0, method = 'SLSQP', bounds = bnds, constraints = cons)
 
+            # Check for empty element (which it shouldnt be)
+            if not edges[0].guess_pressure and edges[0].guess_pressure != 0:
+                pass
                 # This is correct, use this
+                # For cellfit stuff
                 #sol = minimize(self.objective_function_pressure, x0, method = 'L-BFGS-B', constraints = cons)
-                sol = minimize(self.objective_function_pressure, x0, method = 'L-BFGS-B', bounds = bnds,  options = {**kwargs})
+                # Normal L-BFGS 
+                #sol = minimize(self.objective_function_pressure, x0, method = 'L-BFGS-B', bounds = bnds,  options = {**kwargs})
             else:
-                # for k, xxx in enumerate(x0):
-                #     x0[k] = 0.001
+                # Assign constant initial guesses if needed
+                for k, xxx in enumerate(x0):
+                    x0[k] = 0.001
                 if x0.count(x0[0]) == len(x0):
 
+                    # If all initial guesses are the same, use random initial guesses
                     # for k, xxx in enumerate(x0):
                     #     x0[k] = random.randint(0,101)/10000
                     print('Initial pressure guess is', x0)
                     minimizer_kwargs = {"method": "L-BFGS-B", "bounds" : bnds}
                     print('Trying basin hopping')
-                    sol = basinhopping(self.objective_function_pressure, x0, minimizer_kwargs=minimizer_kwargs, niter=100, disp = True)
+                    #sol = basinhopping(self.objective_function_pressure, x0, minimizer_kwargs=minimizer_kwargs, niter=2, disp = True)
+
+                    # RUn normal
                     #sol = minimize(self.objective_function_pressure, x0, method = 'L-BFGS-B', bounds = bnds, options = {**kwargs})
-                    # print("global minimum: x = %.4f, f(x0) = %.4f" % (sol.x, sol.fun))
+
+                    # Run Cellfit stuff
+                    sol = minimize(self.objective_function_pressure, x0, method = 'SLSQP', constraints = cons)
                 else:
-                    sol = minimize(self.objective_function_pressure, x0, method = 'L-BFGS-B', bounds = bnds, options = {**kwargs})
+                    # i[0] should say how many times the function has been called. If its 2, this is the first pressure iteration. Use basin hopping
+                    if i[0] ==2:
+                        print('Pressure initial basin hopping')
+                        print('Initial pressure guess is', x0)
+                        minimizer_kwargs = {"method": "L-BFGS-B", "bounds" : bnds}
+                        print('Trying basin hopping')
+                        # Try basin hoppinh
+                        #sol = basinhopping(self.objective_function_pressure, x0, minimizer_kwargs=minimizer_kwargs, niter=2, disp = True)
+
+                        # Run CellFit stuff
+                        sol = minimize(self.objective_function_pressure, x0, method = 'SLSQP', constraints = cons)
+
+                        # L-BFGS
+                        #sol = minimize(self.objective_function_pressure, x0, method = 'L-BFGS-B', bounds = bnds, options = {**kwargs})
+                    else:
+                        # RUn normal
+                        #sol = minimize(self.objective_function_pressure, x0, method = 'L-BFGS-B', bounds = bnds, options = {**kwargs})
+
+                        # Run Cellfit stuff
+                        sol = minimize(self.objective_function_pressure, x0, method = 'SLSQP', constraints = cons)
         # print(sol)
         # print('Success', sol.success)
         print('Function value', sol.fun)
@@ -945,7 +1181,7 @@ class colony:
         print('Solution', sol.x)
         print('\n')
         print('-----------------------------')
-        return sol
+        return sol 
 
     def make_bounds(self, edge_or_cell):
         """
@@ -1161,6 +1397,7 @@ class colony:
         """
 
         A = np.zeros((len(self.cells), 1))
+        list_of_edges = []
 
         # of the form tension/radius
         rhs = []
@@ -1170,6 +1407,7 @@ class colony:
 
             # find cells with a common edge to c
             common_edge_cells = [cell for cell in self.cells if set(c.edges).intersection(set(cell.edges)) != set() if cell != c]
+
 
             # If there are two cells that share an edge, can calculate pressure difference across it
             for cell in common_edge_cells:
@@ -1182,54 +1420,68 @@ class colony:
 
                 for e in c_edges:
 
-                    temp = np.zeros((len(self.cells),1))
-                    # we are finding the pressure difference between 2 cells - (cell, c)
-                    values = np.array([1,-1])
-                    for j, i in enumerate(indices):
-                        # here we assign +1 to cell (c) and -1 to cell (cell)
-                        temp[i] = values[j]
+                    if e not in list_of_edges:
 
-                    A = np.append(A, temp, axis=1)
+                        temp = np.zeros((len(self.cells),1))
+                        # we are finding the pressure difference between 2 cells - (cell, c)
+                        values = np.array([1,-1])
+                        for j, i in enumerate(indices):
+                            # here we assign +1 to cell (c) and -1 to cell (cell)
+                            temp[i] = values[j]
 
-                    convex_cell = e.convex_concave(c, cell)
-                    if convex_cell == c:
-                        if e.radius is not None:
-                            if e.tension is not []:
-                                rhs.append(e.tension/ e.radius)
-                        else: 
-                            rhs.append(0)
-                    else:
-                        if e.radius is not None:
-                            rhs.append(np.negative(e.tension/ e.radius))
+                        A = np.append(A, temp, axis=1)
+
+                        convex_cell = e.convex_concave(c, cell)
+
+                        if convex_cell == c:
+                            if e.radius is not None:
+                                if e.tension is not []:
+                                    #rhs.append(np.negative(e.tension/ e.radius))
+                                    rhs.append(e.tension/ e.radius)
+                            else: 
+                                rhs.append(0)
+                        elif convex_cell == cell:
+                            if e.radius is not None:
+                                #rhs.append(e.tension/ e.radius)
+                                rhs.append(np.negative(e.tension/ e.radius))
+                            else:
+                                rhs.append(0)
                         else:
-                            rhs.append(0)
+                            if e.radius is not None:
+                                if e.tension is not []:
+                                    #rhs.append(np.negative(e.tension/ e.radius))
+                                    rhs.append(e.tension/ e.radius)
+                            else: 
+                                rhs.append(0)
+                        list_of_edges.append(e)
 
                     
         A = A.T
         A = np.delete(A, (0), axis=0)
         rhs = np.array(rhs)
+        print(np.shape(A), np.shape(rhs))
 
         # Check for all zero columns. If any column is all zero, that means the cell doesnt share a common edge with any other cell
-        def delete_column(A, index):
-            A = np.delete(A, np.s_[index], axis=1)
-            new_index = np.where(~A.any(axis=0))[0]
+        # def delete_column(A, index):
+        #     A = np.delete(A, np.s_[index], axis=1)
+        #     new_index = np.where(~A.any(axis=0))[0]
 
-            if len(new_index) > 0:
-                A = delete_column(A, new_index[0])
-            return A
+        #     if len(new_index) > 0:
+        #         A = delete_column(A, new_index[0])
+        #     return A
 
-        # Save indicies of cells that we cant calculate pressure for (that cell doesnt have a common edge with any other cell)
-        zero_column_index = np.sort(np.where(~A.any(axis=0))[0])
+        # # Save indicies of cells that we cant calculate pressure for (that cell doesnt have a common edge with any other cell)
+        # zero_column_index = np.sort(np.where(~A.any(axis=0))[0])
 
-        if len(zero_column_index) > 0:
-            for i in zero_column_index:
-                self.cells[i].pressure = None
-            A = delete_column(A, zero_column_index[0])
+        # if len(zero_column_index) > 0:
+        #     for i in zero_column_index:
+        #         self.cells[i].pressure = None
+        #     A = delete_column(A, zero_column_index[0])
 
         return A, rhs
 
 
-    def calculate_pressure(self, **kwargs):
+    def calculate_pressure(self, solver = None,  **kwargs):
         """
         Calculate pressure using calculated tensions and edge curvatures (radii). 
         Pressure is unique to every cell
@@ -1237,13 +1489,16 @@ class colony:
         A, rhs = self.make_pressure_matrix()
 
         # Old solver
-        #pressures, P  = self.solve_constrained_lsq(A, 1, rhs)
+        if solver == 'KKT':
+            pressures, P  = self.solve_constrained_lsq(A, 1, rhs)
 
         # New solver 
         cells = self.cells
-        sol = self.scipy_opt_minimze(cells, **kwargs)
-        pressures = sol.x
-        P = []
+
+        if solver == None:
+            sol = self.scipy_opt_minimze(cells, **kwargs)
+            pressures = sol.x
+            P = []
 
         for j, cell in enumerate(self.cells):
             cell.pressure = pressures[j]
@@ -1270,9 +1525,9 @@ class colony:
         # # Plot tensions
 
         for j, an_edge in enumerate(edges):
-            an_edge.plot(ax, ec = cm.viridis(c1[j]), lw = 3)
+            an_edge.plot(ax, ec = cm.jet(c1[j]), **kwargs)
 
-        sm = plt.cm.ScalarMappable(cmap=cm.viridis, norm=plt.Normalize(vmin=0, vmax=1))
+        sm = plt.cm.ScalarMappable(cmap=cm.jet, norm=plt.Normalize(vmin=0, vmax=1))
         # fake up the array of the scalar mappable. 
         sm._A = []
 
@@ -1302,11 +1557,11 @@ class colony:
         for j, c in enumerate(self.cells):
             x = [n.loc[0] for n in c.nodes]
             y = [n.loc[1] for n in c.nodes]
-            plt.fill(x, y, c= cm.viridis(c2[j]), alpha = 0.2)
+            plt.fill(x, y, c= cm.jet(c2[j]), alpha = 0.2)
             for e in c.edges:
-                e.plot_fill(ax, color = cm.viridis(c2[j]), alpha = 0.2)
+                e.plot_fill(ax, color = cm.jet(c2[j]), alpha = 0.2)
 
-        sm = plt.cm.ScalarMappable(cmap=cm.viridis, norm=plt.Normalize(vmin=-1, vmax=1))
+        sm = plt.cm.ScalarMappable(cmap=cm.jet, norm=plt.Normalize(vmin=-1, vmax=1))
         # fake up the array of the scalar mappable. 
         sm._A = []
 
@@ -1331,6 +1586,7 @@ class colony:
 
         def norm2(pressures, min_pres = None, max_pres = None):
             if min_pres == None and max_pres == None:
+                #return (pressures - np.mean(pressures)) / np.std(pressures)
                 return (pressures - min(pressures)) / float(max(pressures) - min(pressures))
             else:
                 return (pressures - min_pres) / float(max_pres - min_pres)
@@ -1342,12 +1598,12 @@ class colony:
         for j, c in enumerate(self.cells):
             x = [n.loc[0] for n in c.nodes]
             y = [n.loc[1] for n in c.nodes]
-            plt.fill(x, y, c= cm.viridis(c2[j]), alpha = 0.2)
+            plt.fill(x, y, c= cm.jet(c2[j]), alpha = 0.2)
             for e in c.edges:
                 # Plots a filled arc
-                e.plot_fill(ax, color = cm.viridis(c2[j]), alpha = 0.2)
+                e.plot_fill(ax, color = cm.jet(c2[j]), alpha = 0.2)
 
-        sm = plt.cm.ScalarMappable(cmap=cm.viridis, norm=plt.Normalize(vmin=-1, vmax=1))
+        sm = plt.cm.ScalarMappable(cmap=cm.jet, norm=plt.Normalize(vmin=-1, vmax=1))
         # fake up the array of the scalar mappable. 
         sm._A = []
 
@@ -1358,9 +1614,9 @@ class colony:
         # # Plot tensions
 
         for j, an_edge in enumerate(edges):
-            an_edge.plot(ax, ec = cm.viridis(c1[j]), lw = 3)
+            an_edge.plot(ax, ec = cm.jet(c1[j]), **kwargs)
 
-        sm = plt.cm.ScalarMappable(cmap=cm.viridis, norm=plt.Normalize(vmin=0, vmax=1))
+        sm = plt.cm.ScalarMappable(cmap=cm.jet, norm=plt.Normalize(vmin=0, vmax=1))
         # fake up the array of the scalar mappable. 
         sm._A = []
 
@@ -1504,6 +1760,9 @@ class data:
         else:
             # if no radius, leave as None
             ed = edge(node_a, node_b, None, None, None, x, y)
+
+        ed.center_of_circle = [xc, yc]
+
         return ed
 
 
@@ -1712,6 +1971,7 @@ class data:
 
     def remove_small_cells(self, nodes, edges):
         # Get unique cells
+        #cells = self.find_all_cells(edges)
         cells = self.find_cycles(edges)
         cutoff_perim = 150
         small_cells = [cell for cell in cells if cell.perimeter() < cutoff_perim]
@@ -1773,6 +2033,42 @@ class data:
 
         return nodes, edges, new_edges
 
+    def find_all_cells(self, edges):
+        """Find all the cells in a list of edges
+        Parameters
+        ----------
+            edges: list of edges
+        Returns
+        -------
+            cells: list of cells
+        """
+        cells = []
+        for edge in edges:
+            new = self.cells_on_either_side(edge)
+            print('Found a cell', new)
+            for cell in new:
+                if cell is not None and cell not in cells:
+                    cells.append(cell)
+        return cells
+
+    def cells_on_either_side(self, edge):
+        """Find the cells on either side of this edge, if they exist
+        What we have to work with are the connected edges on each side 
+        of the starting edge and the edge angles they make
+        Parameters
+        ----------
+        edge: edge class
+            a single seed edge
+        Returns
+        -------
+        cells: list
+            all (0-2) cells that bound this edge
+        """
+        cycles = [CycleTracer(edge,  1).trace_cycle(10), 
+                  CycleTracer(edge, -1).trace_cycle(10)]
+        cells = [cell(nodes, edges) for nodes, edges in cycles if nodes is not None]
+        return cells
+
     @staticmethod
     def find_cycles(edges):
 
@@ -1800,6 +2096,7 @@ class data:
                         check = 1
                 if check == 0:
                     cells.append(cell)
+
         return cells
 
 
@@ -1819,6 +2116,7 @@ class data:
             nodes, edges, _ = self.post_processing(cutoff, None)
         
         # Get unique cells
+        #cells = self.find_all_cells(edges)
         cells = self.find_cycles(edges)
 
 
@@ -1980,6 +2278,24 @@ class manual_tracing(data):
 
         return nodes, edges, new_edges
 
+class synthetic_data(data):
+    def __init__(self, colony):
+        self.colony = colony 
+
+    def synthetic_cleanup(self, colony):
+        # # Step 1 - remove small stray edges (nodes connected to 1 edge)
+        nodes = colony.tot_nodes
+        edges = colony.tot_edges
+        nodes, edges = self.remove_dangling_edges(nodes, edges)
+
+        # # Step 2 - remove small cells
+        # nodes, edges, new_edges = self.remove_small_cells(nodes, edges)
+
+        # # Step 3 - remove nodes connected to 2 edges
+        nodes, edges = self.remove_two_edge_connections(nodes, edges)
+        return colony
+
+
 class manual_tracing_multiple:
     def __init__(self, numbers):
         """
@@ -2051,6 +2367,7 @@ class manual_tracing_multiple:
         nodes, edges, new = ex.cleanup(cutoff)
 
         cells = ex.find_cycles(edges)
+        #cells = ex.find_all_cells(edges)
 
         return nodes, edges, cells
 
@@ -2503,7 +2820,7 @@ class manual_tracing_multiple:
         plt.close()
 
 
-    def plot_tensions(self, fig, ax, colonies):
+    def plot_tensions(self, fig, ax, colonies, specify_aspect = None, **kwargs):
         """
         Make a tension movie over the colonies
         """
@@ -2514,15 +2831,19 @@ class manual_tracing_multiple:
 
         #min_ten, max_ten = None, None
 
+        counter = 0
         for t, v in colonies.items():
             index = str(t)
             t= int(t)
             nodes = colonies[index].tot_nodes
             edges = colonies[index].tot_edges
             tensions = [e.tension for e in edges]
-            colonies[index].plot_tensions(ax, fig, tensions, min_ten, max_ten)
+            colonies[index].plot_tensions(ax, fig, tensions, min_ten, max_ten, **kwargs)
+            if specify_aspect is not None:
+                ax.set(xlim = [0,600], ylim = [0,600], aspect = 1)
             #pylab.savefig('_tmp0000{0}.png'.format(t), dpi=200)
-            pylab.savefig('_tmp%05d.png'%t, dpi=200)
+            pylab.savefig('_tmp%05d.png'%counter, dpi=200)
+            counter += 1
             plt.cla()
             plt.clf()
             plt.close()
@@ -3322,7 +3643,7 @@ class manual_tracing_multiple:
         modified_z_scores = 0.6745 * (y - median_y) / median_absolute_deviation_y
         return np.where(np.abs(modified_z_scores) > threshold)
 
-    def plot_pressures(self, fig, ax, colonies):
+    def plot_pressures(self, fig, ax, colonies, specify_aspect = None, **kwargs):
         """
         Make a pressure movie over colonies
         """
@@ -3334,15 +3655,19 @@ class manual_tracing_multiple:
 
         #min_pres, max_pres = None, None
 
+        counter = 0
         for t, v in colonies.items():
             index = str(t)
             t= int(t)
             cells = colonies[index].cells
             pressures = [e.pressure for e in cells]
-            colonies[index].plot_pressures(ax, fig, pressures, min_pres, max_pres)
+            colonies[index].plot_pressures(ax, fig, pressures, min_pres, max_pres, **kwargs)
             [e.plot(ax) for e in colonies[index].edges]
             #pylab.savefig('_tmp0000{0}.png'.format(t), dpi=200)
-            pylab.savefig('_tmp%05d.png'%t, dpi=200)
+            if specify_aspect is not None:
+                ax.set(xlim = [0,600], ylim = [0,600], aspect = 1)
+            pylab.savefig('_tmp%05d.png'%counter, dpi=200)
+            counter += 1
             plt.cla()
             plt.clf()
             plt.close()
@@ -3358,7 +3683,7 @@ class manual_tracing_multiple:
         plt.clf()
         plt.close()
 
-    def plot_both_tension_pressure(self, fig, ax, colonies):
+    def plot_both_tension_pressure(self, fig, ax, colonies, specify_aspect = None, **kwargs):
         """
         Make a pressure movie over colonies
         """
@@ -3371,6 +3696,7 @@ class manual_tracing_multiple:
         #min_ten, max_ten, min_pres, max_pres = None, None, None, None
 
 
+        counter = 0
         for t, v in colonies.items():
             index = str(t)
             t=int(t)
@@ -3378,9 +3704,12 @@ class manual_tracing_multiple:
             pressures = [e.pressure for e in cells]
             edges = colonies[index].tot_edges
             tensions = [e.tension for e in edges]
-            colonies[index].plot(ax, fig, tensions, pressures, min_ten, max_ten, min_pres, max_pres)
+            colonies[index].plot(ax, fig, tensions, pressures, min_ten, max_ten, min_pres, max_pres, **kwargs)
+            if specify_aspect is not None:
+                ax.set(xlim = [0,600], ylim = [0,600], aspect = 1)
             #pylab.savefig('_tmp0000{0}.png'.format(t), dpi=200)
-            pylab.savefig('_tmp%05d.png'%t, dpi=200)
+            pylab.savefig('_tmp%05d.png'%counter, dpi=200)
+            counter += 1
             plt.cla()
             plt.clf()
             plt.close()
