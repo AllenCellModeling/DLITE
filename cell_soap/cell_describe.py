@@ -464,7 +464,6 @@ class edge:
 
         distance1 = math.sqrt( ((centroid_cell1[0]-self.center_of_circle[0])**2)+((centroid_cell1[1]-self.center_of_circle[1])**2) )
         distance2 = math.sqrt( ((centroid_cell2[0]-self.center_of_circle[0])**2)+((centroid_cell2[1]-self.center_of_circle[1])**2) )
-        print(distance1, distance2)
         if distance1 > distance2:
             return cell2
         elif distance2 > distance1:
@@ -1092,8 +1091,8 @@ class colony:
                 #sol = minimize(self.objective_function_tension, x0, method = 'L-BFGS-B', bounds = bnds, options = {**kwargs})
             else:
                 # Assign constant initial values if you want
-                for k, xxx in enumerate(x0):
-                    x0[k] = 0.2
+                # for k, xxx in enumerate(x0):
+                #     x0[k] = 0.2
 
                 # If all elements are the same, run basin hopping with random initial guess
                 if x0.count(x0[0]) == len(x0):
@@ -1110,16 +1109,16 @@ class colony:
                     #sol = basinhopping(self.objective_function_tension, x0, minimizer_kwargs=minimizer_kwargs, niter=100, disp = True)
 
                     # Run normal L-BFGS
-                    #sol = minimize(self.objective_function_tension, x0, method = 'L-BFGS-B', bounds = bnds, options = {**kwargs})
+                    sol = minimize(self.objective_function_tension, x0, method = 'L-BFGS-B', bounds = bnds, options = {**kwargs})
 
                     # Run Cellfit stuff
-                    sol = minimize(self.objective_function_tension, x0, method = 'SLSQP', constraints = cons)
+                    #sol = minimize(self.objective_function_tension, x0, method = 'SLSQP', constraints = cons)
                 else:
                     # Run normal L-BFGS
-                    #sol = minimize(self.objective_function_tension, x0, method = 'L-BFGS-B', bounds = bnds, options = {**kwargs})
+                    sol = minimize(self.objective_function_tension, x0, method = 'L-BFGS-B', bounds = bnds, options = {**kwargs})
 
                     # Run Cellfit stuff
-                    sol = minimize(self.objective_function_tension, x0, method = 'SLSQP', constraints = cons)
+                    #sol = minimize(self.objective_function_tension, x0, method = 'SLSQP', constraints = cons)
         else:
             # Constraint for cellfit paper
             cons = [{'type': 'eq', 'fun':self.equality_constraint_pressure}]
@@ -1135,8 +1134,8 @@ class colony:
                 #sol = minimize(self.objective_function_pressure, x0, method = 'L-BFGS-B', bounds = bnds,  options = {**kwargs})
             else:
                 # Assign constant initial guesses if needed
-                for k, xxx in enumerate(x0):
-                    x0[k] = 0.001
+                # for k, xxx in enumerate(x0):
+                #     x0[k] = 0.001
                 if x0.count(x0[0]) == len(x0):
 
                     # If all initial guesses are the same, use random initial guesses
@@ -1148,10 +1147,10 @@ class colony:
                     #sol = basinhopping(self.objective_function_pressure, x0, minimizer_kwargs=minimizer_kwargs, niter=2, disp = True)
 
                     # RUn normal
-                    #sol = minimize(self.objective_function_pressure, x0, method = 'L-BFGS-B', bounds = bnds, options = {**kwargs})
+                    sol = minimize(self.objective_function_pressure, x0, method = 'L-BFGS-B', bounds = bnds, options = {**kwargs})
 
                     # Run Cellfit stuff
-                    sol = minimize(self.objective_function_pressure, x0, method = 'SLSQP', constraints = cons)
+                    #sol = minimize(self.objective_function_pressure, x0, method = 'SLSQP', constraints = cons)
                 else:
                     # i[0] should say how many times the function has been called. If its 2, this is the first pressure iteration. Use basin hopping
                     if i[0] ==2:
@@ -1163,16 +1162,16 @@ class colony:
                         #sol = basinhopping(self.objective_function_pressure, x0, minimizer_kwargs=minimizer_kwargs, niter=2, disp = True)
 
                         # Run CellFit stuff
-                        sol = minimize(self.objective_function_pressure, x0, method = 'SLSQP', constraints = cons)
+                        #sol = minimize(self.objective_function_pressure, x0, method = 'SLSQP', constraints = cons)
 
                         # L-BFGS
-                        #sol = minimize(self.objective_function_pressure, x0, method = 'L-BFGS-B', bounds = bnds, options = {**kwargs})
+                        sol = minimize(self.objective_function_pressure, x0, method = 'L-BFGS-B', bounds = bnds, options = {**kwargs})
                     else:
                         # RUn normal
-                        #sol = minimize(self.objective_function_pressure, x0, method = 'L-BFGS-B', bounds = bnds, options = {**kwargs})
+                        sol = minimize(self.objective_function_pressure, x0, method = 'L-BFGS-B', bounds = bnds, options = {**kwargs})
 
                         # Run Cellfit stuff
-                        sol = minimize(self.objective_function_pressure, x0, method = 'SLSQP', constraints = cons)
+                        #sol = minimize(self.objective_function_pressure, x0, method = 'SLSQP', constraints = cons)
         # print(sol)
         # print('Success', sol.success)
         print('Function value', sol.fun)
@@ -1459,7 +1458,6 @@ class colony:
         A = A.T
         A = np.delete(A, (0), axis=0)
         rhs = np.array(rhs)
-        print(np.shape(A), np.shape(rhs))
 
         # Check for all zero columns. If any column is all zero, that means the cell doesnt share a common edge with any other cell
         # def delete_column(A, index):
@@ -1505,7 +1503,7 @@ class colony:
         
         return pressures, P, A
 
-    def plot_tensions(self, ax, fig, tensions, min_ten = None, max_ten = None, **kwargs):
+    def plot_tensions(self, ax, fig, tensions, min_ten = None, max_ten = None, specify_color = None, **kwargs):
         """
         Plot normalized tensions (min, width) with colorbar
         """
@@ -1525,9 +1523,16 @@ class colony:
         # # Plot tensions
 
         for j, an_edge in enumerate(edges):
-            an_edge.plot(ax, ec = cm.jet(c1[j]), **kwargs)
+            if specify_color is not None:
+                an_edge.plot(ax, ec = cm.jet(c1[j]), **kwargs)
+            else:
+                an_edge.plot(ax, ec = cm.viridis(c1[j]), **kwargs)
 
-        sm = plt.cm.ScalarMappable(cmap=cm.jet, norm=plt.Normalize(vmin=0, vmax=1))
+        if specify_color is not None:
+            sm = plt.cm.ScalarMappable(cmap=cm.jet, norm=plt.Normalize(vmin=0, vmax=1))
+        else:
+            sm = plt.cm.ScalarMappable(cmap=cm.viridis, norm=plt.Normalize(vmin=0, vmax=1))
+
         # fake up the array of the scalar mappable. 
         sm._A = []
 
@@ -1535,7 +1540,7 @@ class colony:
         cl = plt.colorbar(sm, cax = cbaxes)
         cl.set_label('Normalized tension', fontsize = 13, labelpad = -60)
 
-    def plot_pressures(self, ax, fig, pressures, min_pres = None, max_pres = None, **kwargs):
+    def plot_pressures(self, ax, fig, pressures, min_pres = None, max_pres = None, specify_color = None, **kwargs):
         """
         Plot normalized pressures (mean, std) with colorbar 
         """
@@ -1557,11 +1562,22 @@ class colony:
         for j, c in enumerate(self.cells):
             x = [n.loc[0] for n in c.nodes]
             y = [n.loc[1] for n in c.nodes]
-            plt.fill(x, y, c= cm.jet(c2[j]), alpha = 0.2)
-            for e in c.edges:
-                e.plot_fill(ax, color = cm.jet(c2[j]), alpha = 0.2)
+            if specify_color is not None:
+                plt.fill(x, y, c= cm.jet(c2[j]), alpha = 0.2)
+            else:
+                plt.fill(x, y, c= cm.viridis(c2[j]), alpha = 0.2)
 
-        sm = plt.cm.ScalarMappable(cmap=cm.jet, norm=plt.Normalize(vmin=-1, vmax=1))
+            for e in c.edges:
+                if specify_color is not None:
+                    e.plot_fill(ax, color = cm.jet(c2[j]), alpha = 0.2)
+                else:
+                    e.plot_fill(ax, color = cm.viridis(c2[j]), alpha = 0.2)
+
+
+        if specify_color is not None:
+            sm = plt.cm.ScalarMappable(cmap=cm.jet, norm=plt.Normalize(vmin=-1, vmax=1))
+        else:
+            sm = plt.cm.ScalarMappable(cmap=cm.viridis, norm=plt.Normalize(vmin=-1, vmax=1))
         # fake up the array of the scalar mappable. 
         sm._A = []
 
@@ -1570,7 +1586,7 @@ class colony:
         cl.set_label('Normalized pressure', fontsize = 13, labelpad = 10)
 
 
-    def plot(self, ax, fig, tensions, pressures, min_ten = None, max_ten = None, min_pres = None, max_pres = None, **kwargs):
+    def plot(self, ax, fig, tensions, pressures, min_ten = None, max_ten = None, min_pres = None, max_pres = None, specify_color = None, **kwargs):
         """
         Plot both tensions and pressures on a single axes
         """
@@ -1598,12 +1614,22 @@ class colony:
         for j, c in enumerate(self.cells):
             x = [n.loc[0] for n in c.nodes]
             y = [n.loc[1] for n in c.nodes]
-            plt.fill(x, y, c= cm.jet(c2[j]), alpha = 0.2)
+            if specify_color is not None:
+                plt.fill(x, y, c= cm.jet(c2[j]), alpha = 0.2)
+            else:
+                plt.fill(x, y, c= cm.viridis(c2[j]), alpha = 0.2)
             for e in c.edges:
                 # Plots a filled arc
-                e.plot_fill(ax, color = cm.jet(c2[j]), alpha = 0.2)
+                if specify_color is not None:
+                    e.plot_fill(ax, color = cm.jet(c2[j]), alpha = 0.2)
+                else:
+                    e.plot_fill(ax, color = cm.viridis(c2[j]), alpha = 0.2)
 
-        sm = plt.cm.ScalarMappable(cmap=cm.jet, norm=plt.Normalize(vmin=-1, vmax=1))
+
+        if specify_color is not None:
+            sm = plt.cm.ScalarMappable(cmap=cm.jet, norm=plt.Normalize(vmin=-1, vmax=1))
+        else:
+            sm = plt.cm.ScalarMappable(cmap=cm.viridis, norm=plt.Normalize(vmin=-1, vmax=1))
         # fake up the array of the scalar mappable. 
         sm._A = []
 
@@ -1614,9 +1640,15 @@ class colony:
         # # Plot tensions
 
         for j, an_edge in enumerate(edges):
-            an_edge.plot(ax, ec = cm.jet(c1[j]), **kwargs)
+            if specify_color is not None:
+                an_edge.plot(ax, ec = cm.jet(c1[j]), **kwargs)
+            else:
+                an_edge.plot(ax, ec = cm.viridis(c1[j]), **kwargs)
 
-        sm = plt.cm.ScalarMappable(cmap=cm.jet, norm=plt.Normalize(vmin=0, vmax=1))
+        if specify_color is not None:
+            sm = plt.cm.ScalarMappable(cmap=cm.jet, norm=plt.Normalize(vmin=0, vmax=1))
+        else:
+            sm = plt.cm.ScalarMappable(cmap=cm.viridis, norm=plt.Normalize(vmin=0, vmax=1))
         # fake up the array of the scalar mappable. 
         sm._A = []
 
@@ -1719,9 +1751,9 @@ class data:
 
 
         a = 0.5*np.linalg.norm(np.subtract([x2,y2], [x1,y1])) # dist to midpoint
-
-
+        # print(radius == 26.73131381210073, radius)
         # Check if radius is 0
+        # print(x1, y1, x2, x2, radius)
         if radius > 0:
 
             # Check for impossible arc
@@ -1730,29 +1762,30 @@ class data:
                 # if positive, we want to go from node_b to node_a
                 # All the cases where i specify a radius are unique cases that i have yet to figure out
                 if cr > 0: # correct is cr > 0
-                    if radius == 110.29365917569841:
+                    # print(radius == 44.869497086324635)
+                    if radius == 110.29365917569841 or radius == 15.13898863318815:
                         ed = edge(node_a, node_b, radius, None, None, x, y)
                     else:
 
                         ed = edge(node_b, node_a, radius, None, None, x, y)
                     #ed = edge(node_b, node_a, radius, xc, yc)
                 else:
-                    if radius == 310.7056676687468 or radius == 302.67735946711764:
+                    if radius == 310.7056676687468 or radius == 302.67735946711764 or radius == 20.50806241927082 or radius == 26.73131381210073 or radius == 44.869497086324635:
                         ed = edge(node_b, node_a, radius, None, None, x, y)
                     else:
                         ed = edge(node_a, node_b, radius, None, None, x, y)
                     #ed = edge(node_a, node_b, radius, xc, yc)
             else:
-
-                rnd = a - radius + 5              
+                rnd = a - radius + 5
+                print(cr, radius)              
                 if cr > 0:
-                    if cr == 11076.485197677383 or cr == 202.12988846862288:
+                    if cr == 11076.485197677383 or cr == 202.12988846862288 or cr == 145.1160155195729 or radius == 20.124618428290365 or radius == 21.71639076327512 or radius == 13.296557101922646 or radius == 16.102180466236412:
                         ed = edge(node_a, node_b, radius + rnd,  None, None, x, y)
                     else:
                     #ed = edge(node_b, node_a, None,  None, None, x, y)
                         ed = edge(node_b, node_a, radius + rnd,  None, None, x, y)
                 else:
-                    if radius == 37.262213713433155 or radius == 62.61598322629542 or radius == 76.8172271622748 or radius == 42.1132395657534:
+                    if radius == 37.262213713433155 or radius == 62.61598322629542 or radius == 76.8172271622748 or radius == 42.1132395657534 or radius == 14.59048212177372 or radius == 22.032023519154624 or radius == 24.943669050666582 or radius == 12.168152196856052 or radius == 11.461675085309 or radius == 13.14379201471666 or radius == 15.237588186248265:
                         ed = edge(node_b, node_a, radius + rnd,  None, None, x, y)
                     else:
                     #ed = edge(node_a, node_b, None,  None, None, x, y)
@@ -2297,7 +2330,7 @@ class synthetic_data(data):
 
 
 class manual_tracing_multiple:
-    def __init__(self, numbers):
+    def __init__(self, numbers, type = None):
         """
         Class to handle colonies at mutliple time points that have been manually traced out
         using NeuronJ
@@ -2306,12 +2339,19 @@ class manual_tracing_multiple:
         'MAX_20170123_I01_003-Scene-4-P4-split_T0.ome.txt'
                                                 ^ this number changes - 0,1,2,3,..30
         """
-        self.name_first = 'MAX_20170123_I01_003-Scene-4-P4-split_T'
-        self.name_last = '.ome.txt'
+
+        if type == None:
+            self.name_first = 'MAX_20170123_I01_003-Scene-4-P4-split_T'
+            self.name_last = '.ome.txt'
+        else:
+            self.name_first = 'AVG_20170124_I07_001-Scene-4-P2-100'
+            self.name_last = '.txt'
+
         names = [] 
         for i in range(numbers[0],numbers[-1],1):
             names.append(self.name_first+ str(i)+ self.name_last)
         names.append(self.name_first+ str(numbers[-1])+ self.name_last)
+
         self.names = names
 
     def get_X_Y_data(self, number):
@@ -2319,7 +2359,10 @@ class manual_tracing_multiple:
         Retrieve X and Y co-ordinates of a colony at a time point specified by number
         """
 
-        file = self.name_first + str(number) + self.name_last
+        if number <10 and self.name_first == 'AVG_20170124_I07_001-Scene-4-P2-100':
+            file = self.name_first + str(0) +  str(number) + self.name_last
+        else:
+            file = self.name_first + str(number) + self.name_last
 
         with open(file,'r') as f:
             a = [l.split(',') for l in f]
@@ -2353,15 +2396,19 @@ class manual_tracing_multiple:
 
         ex = manual_tracing(X, Y)
 
-        cutoff= 14 if  0 <= number <= 3 \
-                or 5 <= number <= 7 \
-                or 10 <= number <= 11 \
-                or number == 13 or number == 17 else \
-                16 if 14 <= number <= 15 \
-                or 18 <= number <= 30 else \
-                17 if 8 <= number <= 9 or number == 16 \
-                or number == 16 else \
-                20 if number == 4 else 12
+        if self.name_first ==  'MAX_20170123_I01_003-Scene-4-P4-split_T':
+            cutoff= 14 if  0 <= number <= 3 \
+                    or 5 <= number <= 7 \
+                    or 10 <= number <= 11 \
+                    or number == 13 or number == 17 else \
+                    16 if 14 <= number <= 15 \
+                    or 18 <= number <= 30 else \
+                    17 if 8 <= number <= 9 or number == 16 \
+                    or number == 16 else \
+                    20 if number == 4 else 12
+        else:
+            cutoff = 10
+
         print('File %d used a Cutoff value ------> %d' % (number, cutoff))
 
         nodes, edges, new = ex.cleanup(cutoff)
@@ -2650,7 +2697,7 @@ class manual_tracing_multiple:
 
         return now_nodes, now_cells, edges2
 
-    def first_computation(self, number_first, **kwargs):
+    def first_computation(self, number_first, solver = None, **kwargs):
         """
         Main first computation
         Retuns a colony at number_first
@@ -2667,15 +2714,15 @@ class manual_tracing_multiple:
         name = str(number_first)
         colonies[name] = colony(cells, edges2, nodes)
 
-        tensions, P_T, A = colonies[name].calculate_tension(**kwargs)
-        pressures, P_P, B = colonies[name].calculate_pressure(**kwargs)
+        tensions, P_T, A = colonies[name].calculate_tension(solver, **kwargs)
+        pressures, P_P, B = colonies[name].calculate_pressure(solver, **kwargs)
 
         colonies[name].tension_matrix = A
         colonies[name].pressure_matrix = B
 
         return colonies, dictionary
 
-    def computation_based_on_prev(self, numbers, colonies = None, index = None, old_dictionary = None, **kwargs):
+    def computation_based_on_prev(self, numbers, colonies = None, index = None, old_dictionary = None, solver= None, **kwargs):
         """
         Recursive loop that cycles through all the time steps
         Steps -
@@ -2688,7 +2735,7 @@ class manual_tracing_multiple:
         """
 
         if colonies == None:
-            colonies, old_dictionary = self.first_computation(numbers[0], **kwargs)
+            colonies, old_dictionary = self.first_computation(numbers[0], solver, **kwargs)
             colonies[str(numbers[0])].dictionary = old_dictionary
             index = 0
 
@@ -2820,7 +2867,7 @@ class manual_tracing_multiple:
         plt.close()
 
 
-    def plot_tensions(self, fig, ax, colonies, specify_aspect = None, **kwargs):
+    def plot_tensions(self, fig, ax, colonies, specify_aspect = None, specify_color = None, **kwargs):
         """
         Make a tension movie over the colonies
         """
@@ -2838,7 +2885,7 @@ class manual_tracing_multiple:
             nodes = colonies[index].tot_nodes
             edges = colonies[index].tot_edges
             tensions = [e.tension for e in edges]
-            colonies[index].plot_tensions(ax, fig, tensions, min_ten, max_ten, **kwargs)
+            colonies[index].plot_tensions(ax, fig, tensions, min_ten, max_ten, specify_color, **kwargs)
             if specify_aspect is not None:
                 ax.set(xlim = [0,600], ylim = [0,600], aspect = 1)
             #pylab.savefig('_tmp0000{0}.png'.format(t), dpi=200)
@@ -3643,7 +3690,7 @@ class manual_tracing_multiple:
         modified_z_scores = 0.6745 * (y - median_y) / median_absolute_deviation_y
         return np.where(np.abs(modified_z_scores) > threshold)
 
-    def plot_pressures(self, fig, ax, colonies, specify_aspect = None, **kwargs):
+    def plot_pressures(self, fig, ax, colonies, specify_aspect = None, specify_color = None, **kwargs):
         """
         Make a pressure movie over colonies
         """
@@ -3661,7 +3708,7 @@ class manual_tracing_multiple:
             t= int(t)
             cells = colonies[index].cells
             pressures = [e.pressure for e in cells]
-            colonies[index].plot_pressures(ax, fig, pressures, min_pres, max_pres, **kwargs)
+            colonies[index].plot_pressures(ax, fig, pressures, min_pres, max_pres, specify_color, **kwargs)
             [e.plot(ax) for e in colonies[index].edges]
             #pylab.savefig('_tmp0000{0}.png'.format(t), dpi=200)
             if specify_aspect is not None:
@@ -3683,7 +3730,7 @@ class manual_tracing_multiple:
         plt.clf()
         plt.close()
 
-    def plot_both_tension_pressure(self, fig, ax, colonies, specify_aspect = None, **kwargs):
+    def plot_both_tension_pressure(self, fig, ax, colonies, specify_aspect = None, specify_color = None, **kwargs):
         """
         Make a pressure movie over colonies
         """
@@ -3704,7 +3751,7 @@ class manual_tracing_multiple:
             pressures = [e.pressure for e in cells]
             edges = colonies[index].tot_edges
             tensions = [e.tension for e in edges]
-            colonies[index].plot(ax, fig, tensions, pressures, min_ten, max_ten, min_pres, max_pres, **kwargs)
+            colonies[index].plot(ax, fig, tensions, pressures, min_ten, max_ten, min_pres, max_pres, specify_color, **kwargs)
             if specify_aspect is not None:
                 ax.set(xlim = [0,600], ylim = [0,600], aspect = 1)
             #pylab.savefig('_tmp0000{0}.png'.format(t), dpi=200)
