@@ -117,7 +117,11 @@ class node:
         self.loc = loc
         self._edges = []
         self._tension_vectors = []
+        self._horizontal_vectors = []
+        self._vertical_vectors = []
         self._label = []
+        # edge indices in colony.tot_edges
+        self._edge_indices = []
     
     # def __str__(self):
     #     return "x:%04i, y:%04i"%tuple(self.loc)
@@ -153,6 +157,30 @@ class node:
     def tension_vectors(self, vector):
         if vector not in self._tension_vectors:
             self._tension_vectors.append(vector)
+
+    @property
+    def horizontal_vectors(self):
+        return self._horizontal_vectors
+
+    @horizontal_vectors.setter
+    def horizontal_vectors(self, hor_vector):
+        self._horizontal_vectors = hor_vector
+
+    @property
+    def vertical_vectors(self):
+        return self._vertical_vectors
+
+    @vertical_vectors.setter
+    def vertical_vectors(self, ver_vector):
+        self._vertical_vectors = ver_vector
+
+    @property
+    def edge_indices(self):
+        return self._edge_indices
+
+    @edge_indices.setter
+    def edge_indices(self, indices):
+        self._edge_indices = indices      
 
     @property    
     def label(self):
@@ -213,6 +241,9 @@ class edge:
         self._guess_tension = []
         self._label = []
         self._center_of_circle = []
+        self._cell_indices = []
+        self._cell_coefficients = []
+        self._cell_rhs = []
 
     # def __str__(self):
     #     return "["+"   ->   ".join([str(n) for n in self.nodes])+"]"
@@ -234,6 +265,30 @@ class edge:
                     check = 1
             if check == 0:
                 self._cells.append(cell)
+
+    @property
+    def cell_indices(self):
+        return self._cell_indices
+
+    @cell_indices.setter
+    def cell_indices(self, indices):
+        self._cell_indices = indices
+
+    @property
+    def cell_coefficients(self):
+        return self._cell_coefficients
+
+    @cell_coefficients.setter
+    def cell_coefficients(self, coeff):
+        self._cell_coefficients = coeff
+
+    @property
+    def cell_rhs(self):
+        return self._cell_rhs
+
+    @cell_rhs.setter
+    def cell_rhs(self, rhs):
+        self._cell_rhs = rhs    
 
     @property    
     def label(self):
@@ -721,14 +776,14 @@ class cell:
         self._guess_pressure = []
         self._label = []
 
-        for edge in edges:
-            edge.cells = self
+        # for edge in edges:
+        #     edge.cells = self
 
     # def __eq__(self, other):
     #     return set(self.edges) == set(other.edges)
 
-    def __str__(self):
-        return "{\n "+" ".join([str(e)+"\n" for e in self.edges])+"}"
+    # def __str__(self):
+    #     return "{\n "+" ".join([str(e)+"\n" for e in self.edges])+"}"
 
     def plot(self, ax, **kwargs):
 
@@ -808,6 +863,7 @@ class colony:
         self._dictionary = {}
         self._tension_matrix = []
         self._pressure_matrix = []
+        self._pressure_rhs = []
 
         for cell in cells:
             cell.colony_cell = self
@@ -836,6 +892,14 @@ class colony:
     @pressure_matrix.setter
     def pressure_matrix(self, B):
         self._pressure_matrix = B
+
+    @property
+    def pressure_rhs(self):
+        return self._pressure_rhs
+
+    @pressure_rhs.setter
+    def pressure_rhs(self, rhs):
+        self._pressure_rhs = rhs
     
     @property
     def dictionary(self):
@@ -992,12 +1056,15 @@ class colony:
                 # Use this for the networkx plot
                 indices = np.array([edges.index(x) for x in node.edges if x in edges])
 
+                node.edge_indices = indices
+
                 # similarly, only want to consider horizontal vectors that are a part of the colony edge list 
                 # x[0]
                 #horizontal_vectors = np.array([x[0] for x in node.tension_vectors if node.edges[node.tension_vectors.index(x)] in edges if node.edges[node.tension_vectors.index(x)].radius is not None])[np.newaxis]
                 #Use this for networkx plot
                 horizontal_vectors = np.array([x[0] for x in node.tension_vectors if node.edges[node.tension_vectors.index(x)] in edges])[np.newaxis]
                 
+                node.horizontal_vectors = horizontal_vectors[0]
                 # add the horizontal vectors to the corresponding indices in temp
                 temp[indices] = horizontal_vectors.T
 
@@ -1007,6 +1074,9 @@ class colony:
                 # repeat the process for the vertical force balance
                 temp = np.zeros((len(edges),1))
                 vertical_vectors = np.array([x[1] for x in node.tension_vectors if node.edges[node.tension_vectors.index(x)] in edges])[np.newaxis]
+
+                node.vertical_vectors = vertical_vectors[0]
+
                 temp[indices] = vertical_vectors.T
                 A = np.append(A, temp, axis=1)
 
@@ -1015,6 +1085,8 @@ class colony:
         # transpose the matrix because we want it of the form AX = 0 where A is m * n and X is n * 1 where n is number of edges 
         A = A.T
         A = np.delete(A, (0), axis=0)
+
+        self.tension_matrix = A
 
         return A
 
@@ -1098,21 +1170,32 @@ class colony:
                 if x0.count(x0[0]) == len(x0):
 
                     # Assign random initial guesses in range 0-1 upto 2 digits
-                    # for k, xxx in enumerate(x0):
-                    #     x0[k] = random.randint(0,101)/100
+                    for k, xxx in enumerate(x0):
+                        x0[k] = random.randint(0,101)/100
 
                     print('Initial Tension guess is', x0)
                     
-                    print('Trying basin hopping')
+                    print('Trying L-BFGS')
                     # Run basin hopping
                     minimizer_kwargs = {"method": "L-BFGS-B", "bounds" : bnds} # used only BFGS and no bounds before
-                    #sol = basinhopping(self.objective_function_tension, x0, minimizer_kwargs=minimizer_kwargs, niter=100, disp = True)
+                    #sol = basinhopping(self.objective_function_tension, x0, T = 0.5, interval = 10,  minimizer_kwargs=minimizer_kwargs, niter=100, disp = True)
 
                     # Run normal L-BFGS
                     sol = minimize(self.objective_function_tension, x0, method = 'L-BFGS-B', bounds = bnds, options = {**kwargs})
+                    #sol = minimize(self.objective_function_tension, x0, method = 'Nelder-Mead', bounds = bnds, options = {**kwargs})
 
                     # Run Cellfit stuff
                     #sol = minimize(self.objective_function_tension, x0, method = 'SLSQP', constraints = cons)
+
+                    # testing
+
+                    # from hyperopt import tpe, fmin, Trials, hp
+
+                    # space = hp.uniform('x', 0, 100)
+                    # tpe_algo = tpe.suggest
+                    # tpe_trials = Trials()
+                    # tpe_best = fmin(fn=self.objective_function_tension, space=space, algo=tpe_algo, trials=tpe_trials, max_evals=2000)
+                    # print(tpe_best)
                 else:
                     # Run normal L-BFGS
                     sol = minimize(self.objective_function_tension, x0, method = 'L-BFGS-B', bounds = bnds, options = {**kwargs})
@@ -1143,7 +1226,7 @@ class colony:
                     #     x0[k] = random.randint(0,101)/10000
                     print('Initial pressure guess is', x0)
                     minimizer_kwargs = {"method": "L-BFGS-B", "bounds" : bnds}
-                    print('Trying basin hopping')
+                    print('Trying L-BFGS')
                     #sol = basinhopping(self.objective_function_pressure, x0, minimizer_kwargs=minimizer_kwargs, niter=2, disp = True)
 
                     # RUn normal
@@ -1151,13 +1234,14 @@ class colony:
 
                     # Run Cellfit stuff
                     #sol = minimize(self.objective_function_pressure, x0, method = 'SLSQP', constraints = cons)
+
                 else:
                     # i[0] should say how many times the function has been called. If its 2, this is the first pressure iteration. Use basin hopping
                     if i[0] ==2:
                         print('Pressure initial basin hopping')
                         print('Initial pressure guess is', x0)
                         minimizer_kwargs = {"method": "L-BFGS-B", "bounds" : bnds}
-                        print('Trying basin hopping')
+                        print('Trying L-BFGS')
                         # Try basin hoppinh
                         #sol = basinhopping(self.objective_function_pressure, x0, minimizer_kwargs=minimizer_kwargs, niter=2, disp = True)
 
@@ -1166,6 +1250,7 @@ class colony:
 
                         # L-BFGS
                         sol = minimize(self.objective_function_pressure, x0, method = 'L-BFGS-B', bounds = bnds, options = {**kwargs})
+                        #sol = minimize(self.objective_function_tension, x0, method = 'Nelder-Mead', bounds = bnds, options = {**kwargs})
                     else:
                         # RUn normal
                         sol = minimize(self.objective_function_pressure, x0, method = 'L-BFGS-B', bounds = bnds, options = {**kwargs})
@@ -1197,11 +1282,13 @@ class colony:
         for j, e_or_c in enumerate(edge_or_cell):
             if type(e_or_c) == edge:
                 if not e_or_c.guess_tension:
-                    b.append((0, np.inf))
+                    #b.append((0, np.inf))
+                    b.append((0.0001, 1))
                     # b.append((-np.inf, np.inf))
                 else:
                     tolerance = e_or_c.guess_tension * tol_perc
-                    b.append((0, np.inf))
+                    #b.append((0, np.inf))
+                    b.append((0.0001, 1))
                     # b.append((e_or_c.guess_tension - tolerance, e_or_c.guess_tension + tolerance))                    
             else:
                 if not e_or_c.guess_pressure:
@@ -1235,7 +1322,7 @@ class colony:
                     guess = (guess_a + guess_b)/2 if guess_a != 0 and guess_b != 0 else\
                             guess_a if guess_b == 0 and guess_a != 0 else\
                             guess_b if guess_a == 0 and guess_b != 0 else\
-                            0.2
+                            0.14
                     I.append(guess)
                     # Update the guess tension used
                     e_or_c.guess_tension = I[j]
@@ -1293,23 +1380,114 @@ class colony:
         Main objective function to be minimzed in the tension calculation 
         i.e sum(row^2) for every row in tension matrix A
         """
-
-        A = self.make_tension_matrix()
-
-        num_of_eqns = len(A[:,0])
         objective = 0
-        for j, row in enumerate(A[:,:]):
-            row_obj = 0
-            mag = 0
-            for k, element in enumerate(row):
-                if element != 0:
-                    row_obj = row_obj + element*x[k]
-                    mag = mag + x[k]
-                if mag != 0:
-                    rhs = row_obj/mag
-                else:
-                    rhs = 0
-            objective = objective + (row_obj - rhs)**2 
+
+        # DAVE WAY
+        for node in self.tot_nodes:
+            if len(node.edges) > 2:
+                indices = node.edge_indices
+
+                starting_tensions = []
+
+                node_vecs = node.tension_vectors
+
+                for i in range(len(indices)):
+                    starting_tensions.append([x[indices[i]]])
+
+                starting_tensions = np.array(starting_tensions)
+
+                tension_vecs = np.multiply(node_vecs, starting_tensions)
+                # print(node_vecs, starting_tensions)
+
+                # print(tension_vecs)
+
+                tension_vec_mags = [np.hypot(*vec) for vec in tension_vecs]
+
+                # print(tension_vec_mags)
+
+                resid_vec = np.sum(tension_vecs, 0)
+
+                # print(resid_vec)
+
+                resid_mag = np.hypot(*resid_vec)
+
+                # print(resid_mag)
+
+                objective = objective + resid_mag + resid_mag/np.sum(tension_vec_mags)
+                #objective = objective + resid_mag 
+
+
+        # MY WAY - split horizontal and vertical force balance
+
+        # for node in self.tot_nodes:
+        #     # only add a force balance if more than 2 edge connected to a node
+        #     if len(node.edges) > 2:
+        #         indices = node.edge_indices
+        #         hor_vectors = node.horizontal_vectors
+        #         ver_vectors = node.vertical_vectors
+
+        #         node_ver_balance, node_hor_balance, sum_of_vec_mags = 0, 0, 0
+        #         for i in range(len(indices)):
+        #             node_hor_balance = node_hor_balance + hor_vectors[i]*x[indices[i]]
+        #             node_ver_balance = node_ver_balance + ver_vectors[i]*x[indices[i]]
+        #             sum_of_vec_mags = sum_of_vec_mags + x[indices[i]]
+
+        #         if sum_of_vec_mags != 0:
+        #             # This is correct
+        #             objective = objective + (node_hor_balance + node_hor_balance/sum_of_vec_mags)**2 
+        #             objective = objective + (node_ver_balance + node_ver_balance/sum_of_vec_mags)**2
+                    
+        #             # objective = objective + (node_hor_balance)**2 + 0.1*(node_hor_balance/sum_of_vec_mags)**2
+        #             # objective = objective + (node_ver_balance)**2 + 0.1*(node_ver_balance/sum_of_vec_mags)**2 
+        #             # objective = objective + (node_hor_balance)**2 + 0.5*(node_hor_balance)**2
+        #             # objective = objective + (node_ver_balance)**2 + 0.5*(node_ver_balance)**2 
+
+        #             #objective = objective + (node_hor_balance )**2 
+        #             #objective = objective + (node_ver_balance )**2
+        #         else:
+        #             objective = objective + (node_hor_balance )**2
+        #             objective = objective + (node_ver_balance )**2
+                    # objective = objective + (node_hor_balance - node_hor_balance/sum_of_vec_mags)**2
+                    # objective = objective + (node_ver_balance - node_ver_balance/sum_of_vec_mags)**2
+
+        # OLD WAY
+
+
+        # #A = self.make_tension_matrix()
+        # A = self.tension_matrix
+
+
+        # num_of_eqns = len(A[:,0])
+        # objective = 0
+
+        # for j, row in enumerate(A[:,:]):
+        #     row_obj = 0
+        #     mag = 0
+        #     regularizer = 0
+        #     for k, element in enumerate(row):
+        #         if element != 0:
+        #             row_obj = row_obj + element*x[k]
+        #             mag = mag + x[k]
+        #             regularizer = regularizer + x[k]**2
+        #         if mag != 0:
+        #             rhs = row_obj/mag
+        #         else:
+        #             rhs = 0
+        #         # temporary
+        #         #rhs = 0
+        #     objective = objective + (row_obj - rhs)**2 
+        #     # This works good
+        #     #objective = objective + (row_obj )**2  + rhs**2
+
+        #     #objective = objective + (row_obj )**2 + rhs **2 + abs(rhs)
+        #     #objective = objective + (row_obj )**2  + abs(rhs)
+
+        #     # This works good for 0.01
+        #     #objective = objective + (row_obj )**2  + 0.05 * regularizer**2
+
+        # # num_of_edges = len(A[:,:])
+        # # for i in range(num_of_edges-1):
+        # #     objective = objective + 0.1*x[i]**2
 
         return objective 
 
@@ -1320,16 +1498,47 @@ class colony:
         rhs is not 0.
         """
 
-        A, rhs = self.make_pressure_matrix()
+        #A, rhs = self.make_pressure_matrix()
 
-        num_of_eqns = len(A[:,0])
         objective = 0
-        for j, row in enumerate(A[:,:]):
-            row_obj = 0
-            for k, element in enumerate(row):
-                if element != 0:
-                    row_obj = row_obj + element*x[k]
-            objective = objective + (row_obj - rhs[j])**2 
+        for e in self.edges:
+            if len(e.cells) == 2:
+                cell_indices = e.cell_indices
+                cell_values = e.cell_coefficients
+                cell_rhs = e.cell_rhs
+                edge_pressure_lhs = 0
+
+                for i in range(len(cell_indices)):
+                    edge_pressure_lhs = edge_pressure_lhs + cell_values[i]*x[cell_indices[i]]
+
+                objective = objective + (edge_pressure_lhs - cell_rhs)**2
+
+
+        # OLD WAY
+        # A = self.pressure_matrix
+        # rhs = self.pressure_rhs
+
+        # num_of_eqns = len(A[:,0])
+        # objective = 0
+        # for j, row in enumerate(A[:,:]):
+        #     row_obj = 0
+        #     mag = 0
+        #     for k, element in enumerate(row):
+        #         if element != 0:
+        #             mag = mag + x[k]
+        #             row_obj = row_obj + element*x[k]
+        #         if mag != 0:
+        #             regularizer = row_obj/mag
+        #         else:
+        #             regularizer = 0
+        #     objective = objective + (row_obj - rhs[j])**2 
+            #objective = objective + (row_obj - rhs[j])**2 + regularizer
+            #objective = objective + (row_obj - rhs[j])**2 + regularizer**2 + abs(regularizer)
+
+        # num_of_cells = len(A[:,:])
+        # for i in range(num_of_cells):
+        #     if i < num_of_cells:
+        #         objective = objective + 0.1*x[i]**2
 
         return objective 
 
@@ -1338,7 +1547,8 @@ class colony:
         Assigns equality constraint - i.e mean of tensions = 1
         """
         
-        A = self.make_tension_matrix()
+        #A = self.make_tension_matrix()
+        A = self.tension_matrix
 
         num_of_edges = len(A[0,:])
         constraint = 0
@@ -1350,7 +1560,8 @@ class colony:
         """
         Assigns equality constraint - i.e mean of pressures = 0
         """      
-        A, _ = self.make_pressure_matrix()
+        #A, _ = self.make_pressure_matrix()
+        A = self.pressure_matrix
 
         num_of_cells = len(A[0,:])
         constraint = 0
@@ -1400,64 +1611,152 @@ class colony:
 
         # of the form tension/radius
         rhs = []
-        #rhs = np.zeros((len(edges), 1))
-        for c in self.cells:
 
+        for e in self.edges:
+            if e not in list_of_edges:
+                if len(e.cells) == 2:
 
-            # find cells with a common edge to c
-            common_edge_cells = [cell for cell in self.cells if set(c.edges).intersection(set(cell.edges)) != set() if cell != c]
+                    cell1 = e.cells[0]
+                    cell2 = e.cells[1]
+                    c_edges = [e for e in set(cell1.edges).intersection(set(cell2.edges))]
+                    indices = []
+                    indices.append(self.cells.index(cell1))
+                    indices.append(self.cells.index(cell2))
 
+                    e.cell_indices = indices
 
-            # If there are two cells that share an edge, can calculate pressure difference across it
-            for cell in common_edge_cells:
-                # find common edges between cell and c
-                c_edges = [e for e in set(cell.edges).intersection(set(c.edges))]
-                indices = []
-                indices.append(self.cells.index(c))
-                indices.append(self.cells.index(cell))
+                    e.cell_coefficients = np.array([1,-1])
 
+                    temp = np.zeros((len(self.cells),1))
 
-                for e in c_edges:
+                    for j, i in enumerate(indices):
+                        # here we assign +1 to cell (cell1) and -1 to cell (cell2)
+                        temp[i] = e.cell_coefficients[j]
 
-                    if e not in list_of_edges:
+                    A = np.append(A, temp, axis=1)
 
-                        temp = np.zeros((len(self.cells),1))
-                        # we are finding the pressure difference between 2 cells - (cell, c)
-                        values = np.array([1,-1])
-                        for j, i in enumerate(indices):
-                            # here we assign +1 to cell (c) and -1 to cell (cell)
-                            temp[i] = values[j]
+                    convex_cell = e.convex_concave(cell1, cell2)
 
-                        A = np.append(A, temp, axis=1)
+                    if convex_cell == cell1:
+                        if e.radius is not None:
+                            if e.tension is not []:
+                                #rhs.append(np.negative(e.tension/ e.radius))
+                                rhs.append(e.tension/ e.radius)
+                                e.cell_rhs = e.tension/e.radius
+                        else: 
+                            print('radius is None cell1')
+                            rhs.append(0)
+                            e.cell_rhs = 0
 
-                        convex_cell = e.convex_concave(c, cell)
-
-                        if convex_cell == c:
-                            if e.radius is not None:
-                                if e.tension is not []:
-                                    #rhs.append(np.negative(e.tension/ e.radius))
-                                    rhs.append(e.tension/ e.radius)
-                            else: 
-                                rhs.append(0)
-                        elif convex_cell == cell:
-                            if e.radius is not None:
-                                #rhs.append(e.tension/ e.radius)
-                                rhs.append(np.negative(e.tension/ e.radius))
-                            else:
-                                rhs.append(0)
+                    elif convex_cell == cell2:
+                        if e.radius is not None:
+                            #rhs.append(e.tension/ e.radius)
+                            rhs.append(np.negative(e.tension/ e.radius))
+                            e.cell_rhs = np.negative(e.tension/ e.radius)
                         else:
-                            if e.radius is not None:
-                                if e.tension is not []:
-                                    #rhs.append(np.negative(e.tension/ e.radius))
-                                    rhs.append(e.tension/ e.radius)
-                            else: 
-                                rhs.append(0)
-                        list_of_edges.append(e)
+                            print('radius is none cell2')
+                            rhs.append(0)
+                            e.cell_rhs = 0
+                    else:
+                        print('how did this happen, no cell1, no cell2')
+                        if e.radius is not None:
+                            if e.tension is not []:
+                                #rhs.append(np.negative(e.tension/ e.radius))
+                                rhs.append(e.tension/ e.radius)
+                                e.cell_rhs = e.tension/ e.radius
+                        else: 
+                            rhs.append(0)
+                            e.cell_rhs = 0
 
-                    
+                    list_of_edges.append(e)
+
         A = A.T
         A = np.delete(A, (0), axis=0)
         rhs = np.array(rhs)
+
+        self.pressure_matrix = A
+        self.pressure_rhs = rhs
+
+
+
+        #OLD WAY
+
+        # #rhs = np.zeros((len(edges), 1))
+        # for c in self.cells:
+
+
+        #     # find cells with a common edge to c
+        #     common_edge_cells = [cell for cell in self.cells if set(c.edges).intersection(set(cell.edges)) != set() if cell != c]
+
+
+        #     # If there are two cells that share an edge, can calculate pressure difference across it
+        #     for cell in common_edge_cells:
+        #         # find common edges between cell and c
+        #         c_edges = [e for e in set(cell.edges).intersection(set(c.edges))]
+        #         indices = []
+        #         indices.append(self.cells.index(c))
+        #         indices.append(self.cells.index(cell))
+
+
+
+
+        #         for e in c_edges:
+
+        #             if e not in list_of_edges:
+
+        #                 e.cell_indices = indices
+
+
+        #                 temp = np.zeros((len(self.cells),1))
+        #                 # we are finding the pressure difference between 2 cells - (cell, c)
+        #                 values = np.array([1,-1])
+        #                 for j, i in enumerate(indices):
+        #                     # here we assign +1 to cell (c) and -1 to cell (cell)
+        #                     temp[i] = values[j]
+
+        #                 e.cell_coefficients = values
+
+        #                 A = np.append(A, temp, axis=1)
+
+        #                 convex_cell = e.convex_concave(c, cell)
+
+        #                 if convex_cell == c:
+        #                     if e.radius is not None:
+        #                         if e.tension is not []:
+        #                             #rhs.append(np.negative(e.tension/ e.radius))
+        #                             rhs.append(e.tension/ e.radius)
+        #                             e.cell_rhs = e.tension/e.radius
+        #                     else: 
+        #                         rhs.append(0)
+        #                         e.cell_rhs = 0
+
+        #                 elif convex_cell == cell:
+        #                     if e.radius is not None:
+        #                         #rhs.append(e.tension/ e.radius)
+        #                         rhs.append(np.negative(e.tension/ e.radius))
+        #                         e.cell_rhs = np.negative(e.tension/ e.radius)
+        #                     else:
+        #                         rhs.append(0)
+        #                         e.cell_rhs = 0
+        #                 else:
+        #                     if e.radius is not None:
+        #                         if e.tension is not []:
+        #                             #rhs.append(np.negative(e.tension/ e.radius))
+        #                             rhs.append(e.tension/ e.radius)
+        #                             e.cell_rhs = e.tension/ e.radius
+        #                     else: 
+        #                         rhs.append(0)
+        #                         e.cell_rhs = 0
+
+        #                 list_of_edges.append(e)
+
+                    
+        # A = A.T
+        # A = np.delete(A, (0), axis=0)
+        # rhs = np.array(rhs)
+
+        # self.pressure_matrix = A
+        # self.pressure_rhs = rhs
 
         # Check for all zero columns. If any column is all zero, that means the cell doesnt share a common edge with any other cell
         # def delete_column(A, index):
@@ -2119,6 +2418,8 @@ class data:
                     if set(cell.edges) == set(c.edges):
                         check = 1
                 if check == 0:
+                    for edge in cell.edges:
+                        edge.cells = cell
                     cells.append(cell)
 
             cell = e.which_cell(edges, 0, max_iter)
@@ -2128,6 +2429,8 @@ class data:
                     if set(cell.edges) == set(c.edges):
                         check = 1
                 if check == 0:
+                    for edge in cell.edges:
+                        edge.cells = cell
                     cells.append(cell)
 
         return cells
@@ -2312,21 +2615,28 @@ class manual_tracing(data):
         return nodes, edges, new_edges
 
 class synthetic_data(data):
-    def __init__(self, colony):
-        self.colony = colony 
+    def __init__(self, nodes, edges):
+        self.nodes = nodes
+        self.edges = edges
 
-    def synthetic_cleanup(self, colony):
-        # # Step 1 - remove small stray edges (nodes connected to 1 edge)
-        nodes = colony.tot_nodes
-        edges = colony.tot_edges
-        nodes, edges = self.remove_dangling_edges(nodes, edges)
+    def compute(self, solver = None, **kwargs):
 
-        # # Step 2 - remove small cells
-        # nodes, edges, new_edges = self.remove_small_cells(nodes, edges)
+        cells = self.find_cycles(self.edges)
 
-        # # Step 3 - remove nodes connected to 2 edges
-        nodes, edges = self.remove_two_edge_connections(nodes, edges)
-        return colony
+
+        colonies = {}
+
+        edges2 = [e for e in self.edges if e.radius is not None]
+        name = str(1)
+        colonies[name] = colony(cells, edges2, self.nodes)
+
+        tensions, P_T, A = colonies[name].calculate_tension(None, None, solver, **kwargs)
+        pressures, P_P, B = colonies[name].calculate_pressure( solver, **kwargs)
+
+        colonies[name].tension_matrix = A
+        colonies[name].pressure_matrix = B
+
+        return colonies
 
 
 class manual_tracing_multiple:
@@ -2581,13 +2891,13 @@ class manual_tracing_multiple:
 
 
         # New stuff
-        if upper_limit < 100:
-            count = 100
+        if upper_limit < 1000:
+            count = 1000
         else:
             count = upper_limit + 1
 
-        if upper_edge_limit < 100:
-            count_edge = 100
+        if upper_edge_limit < 1000:
+            count_edge = 1000
         else:
             count_edge = upper_edge_limit + 1
 
@@ -2643,10 +2953,10 @@ class manual_tracing_multiple:
                     closest_new_cell.label = cell.label
 
         max_label = max([c.label for c in now_cells if c.label != []])
-        if max_label > 99:
+        if max_label > 999:
             count = max_label + 1
         else:
-            count = 100
+            count = 1000
 
         for j, cc in enumerate(now_cells):
             if cc.label == []:
@@ -2722,6 +3032,40 @@ class manual_tracing_multiple:
 
         return colonies, dictionary
 
+    def jiggling_computation_based_on_prev(self, numbers, colonies = None, index = None, old_dictionary = None, solver= None, **kwargs):
+        """
+        Recursive loop that cycles through all the time steps
+        Steps -
+        (1) Call self.first_computation() - returns first colony with generic labeling
+        (2) Call self.track_timestep() - returns new colony that used info in the old colony to assign some initial guesses
+        for tensions and pressures. saved in edge.guess_tension and cell.guess_pressure
+        (3) Calculate tension and pressure on the new colony
+        (4) Call this function again. Keep doing this till we reach the max number
+        (5) Return colonies
+        """
+
+        if colonies == None:
+            colonies, old_dictionary = self.first_computation(numbers[0], solver, **kwargs)
+            colonies[str(numbers[0])].dictionary = old_dictionary
+            index = 0
+
+
+        colonies[str(index + 1)], new_dictionary = self.track_timestep(colonies[str(numbers[index])], old_dictionary, numbers[index + 1])
+        colonies[str(index + 1)].dictionary = new_dictionary
+        tensions, P_T, A = colonies[str(index+1)].calculate_tension(**kwargs)
+        pressures, P_P, B = colonies[str(index+1)].calculate_pressure(**kwargs)
+
+        # Save tension and pressure matrix
+        colonies[str(index+1)].tension_matrix = A
+        colonies[str(index+1)].pressure_matrix = B
+
+        index = index + 1
+        if index < len(numbers) - 1:
+            print('ok')
+            colonies = self.jiggling_computation_based_on_prev(numbers, colonies, index, new_dictionary, **kwargs)
+
+        return colonies
+
     def computation_based_on_prev(self, numbers, colonies = None, index = None, old_dictionary = None, solver= None, **kwargs):
         """
         Recursive loop that cycles through all the time steps
@@ -2739,14 +3083,25 @@ class manual_tracing_multiple:
             colonies[str(numbers[0])].dictionary = old_dictionary
             index = 0
 
-        colonies[str(numbers[index + 1])], new_dictionary = self.track_timestep(colonies[str(numbers[index])], old_dictionary, numbers[index + 1])
-        colonies[str(numbers[index + 1])].dictionary = new_dictionary
-        tensions, P_T, A = colonies[str(numbers[index+1])].calculate_tension(**kwargs)
-        pressures, P_P, B = colonies[str(numbers[index+1])].calculate_pressure(**kwargs)
+        if numbers[index + 1] == numbers[index]:
+            colonies[str(index + 1)], new_dictionary = self.track_timestep(colonies[str(numbers[index])], old_dictionary, numbers[index + 1])
+            colonies[str(index + 1)].dictionary = new_dictionary
+            tensions, P_T, A = colonies[str(index+1)].calculate_tension(**kwargs)
+            pressures, P_P, B = colonies[str(index+1)].calculate_pressure(**kwargs)
 
-        # Save tension and pressure matrix
-        colonies[str(numbers[index+1])].tension_matrix = A
-        colonies[str(numbers[index+1])].pressure_matrix = B
+            # Save tension and pressure matrix
+            colonies[str(index+1)].tension_matrix = A
+            colonies[str(index+1)].pressure_matrix = B
+        else:
+
+            colonies[str(numbers[index + 1])], new_dictionary = self.track_timestep(colonies[str(numbers[index])], old_dictionary, numbers[index + 1])
+            colonies[str(numbers[index + 1])].dictionary = new_dictionary
+            tensions, P_T, A = colonies[str(numbers[index+1])].calculate_tension(**kwargs)
+            pressures, P_P, B = colonies[str(numbers[index+1])].calculate_pressure(**kwargs)
+
+            # Save tension and pressure matrix
+            colonies[str(numbers[index+1])].tension_matrix = A
+            colonies[str(numbers[index+1])].pressure_matrix = B
 
         index = index + 1
 
@@ -3533,21 +3888,30 @@ class manual_tracing_multiple:
             ax4.set_ylabel('Change in Area', color='blue')
             ax4.tick_params('y', colors='blue')
 
-    def seaborn_plot(self, ax, colonies, data = None, cell_data = None, old_labels = None, old_cell_labels = None, counter = None):
+    def seaborn_plot(self, ax, colonies, data = None, cell_data = None, old_labels = None, old_cell_labels = None, counter = None, min_ten = None, max_ten = None, min_pres = None, max_pres = None):
 
         #labels = self.get_repeat_edge(colonies)
+        if min_ten == None and max_ten == None and min_pres == None and max_pres == None:
+            all_tensions, all_radii, all_pressures = self.all_tensions_and_radius_and_pressures(colonies)      
+            _, max_pres, min_pres = self.get_min_max_by_outliers_iqr(all_pressures, type = 'pressure')
+            _, max_ten, min_ten = self.get_min_max_by_outliers_iqr(all_tensions)
+            print(len(all_tensions))
+            min_ten = min(all_tensions)
+            max_ten = max(all_tensions)
+            print(min_ten, max_ten)
+
         initial_index = [int(k) for k,v in colonies.items()][0]
         labels = [e.label for e in colonies[str(initial_index)].tot_edges if e.label != []]
         cell_labels = [c.label for c in colonies[str(initial_index)].cells if c.label != []]
 
         if data is None:
-            data = {'Index_Edge_Labels': [], 'Index_Time':[], 'Edge_Labels': [], 'Tensions': [], 'Time': [], 'Radius': [], 'Straight_Length': [], 'Total_connected_edge_length':[], 'Change_in_length': [], 'Change_in_connected_edge_length': [],'Binary_length_change': [] , 'Binary_connected_length_change':[]}
+            data = {'Index_Edge_Labels': [], 'Index_Time':[], 'Edge_Labels': [], 'Normalized_Tensions': [], 'Tensions': [], 'Change_in_tension': [], 'Time': [], 'Radius': [], 'Straight_Length': [], 'Total_connected_edge_length':[], 'Change_in_length': [], 'Change_in_connected_edge_length': [],'Binary_length_change': [] , 'Binary_connected_length_change':[]}
             edges_dataframe = pd.DataFrame(data)
             edges_dataframe.set_index(['Index_Edge_Labels','Index_Time'])
             #edges_dataframe.set_index(['Index_Edge_Labels', 'Index_Time'], inplace = True)
 
         if cell_data is None:
-            cell_data = {'Index_Cell_Labels': [], 'Index_Cell_Time':[], 'Cell_Labels': [], 'Pressures': [], 'Cell_Time': [], 'Area': [], 'Perimeter': [], 'Change_in_area': [], 'Binary_area_change': [], 'Change_in_perimeter': [], 'Binary_perim_change': []}
+            cell_data = {'Index_Cell_Labels': [], 'Index_Cell_Time':[], 'Cell_Labels': [], 'Normalized_Pressures': [], 'Pressures': [], 'Change_in_pressure':[] , 'Cell_Time': [], 'Area': [], 'Perimeter': [], 'Change_in_area': [], 'Binary_area_change': [], 'Change_in_perimeter': [], 'Binary_perim_change': []}
             cells_dataframe = pd.DataFrame(cell_data)
             cells_dataframe.set_index(['Index_Cell_Labels', 'Index_Cell_Time'], inplace = True)
 
@@ -3555,12 +3919,14 @@ class manual_tracing_multiple:
         for lab in labels:
             if old_labels == None or lab not in old_labels:
                 edge_index = 0
-                lengths, con_lengths = [], []
+                lengths, con_lengths, tensions = [], [], []
                 for t, v in colonies.items():
                     if [e.tension for e in v.tot_edges if e.label == lab] != []:
                         data['Edge_Labels'].append(lab)
                         data['Index_Edge_Labels'].append(lab)
                         data['Tensions'].append([e.tension for e in v.tot_edges if e.label == lab][0])
+                        data['Normalized_Tensions'].append(([e.tension for e in v.tot_edges if e.label == lab][0] - min_ten)/float(max_ten - min_ten))
+
                         current_edge = [e for e in v.tot_edges if e.label == lab][0]
                         con_edges = [e for n in current_edge.nodes for e in n.edges if e != current_edge]
                         con_lengths.append(sum([e.straight_length for e in con_edges]))
@@ -3568,16 +3934,19 @@ class manual_tracing_multiple:
                         data['Time'].append(int(t))
                         data['Index_Time'].append(int(t))
                         data['Radius'].append([e.radius for e in v.tot_edges if e.label == lab][0])
+                        [tensions.append([e.tension for e in v.tot_edges if e.label == lab][0])]
                         [lengths.append([e.straight_length for e in v.tot_edges if e.label == lab][0])]
                         data['Straight_Length'].append([e.straight_length for e in v.tot_edges if e.label == lab][0])
                         if edge_index == 0:
                             data['Change_in_length'].append(0)
+                            data['Change_in_tension'].append(0)
                             data['Change_in_connected_edge_length'].append(0)
                             data['Binary_length_change'].append('Initial Length')
                             data['Binary_connected_length_change'].append('Initial Connected Edge Length')
                             edge_index += 1
                         else:
                             data['Change_in_length'].append(lengths[edge_index] - lengths[edge_index - 1])
+                            data['Change_in_tension'].append(tensions[edge_index] - tensions[edge_index - 1])
                             data['Change_in_connected_edge_length'].append(con_lengths[edge_index] - con_lengths[edge_index - 1])
                             if lengths[edge_index] > lengths[edge_index - 1]:
                                 data['Binary_length_change'].append('Increasing Length')
@@ -3594,18 +3963,21 @@ class manual_tracing_multiple:
         for cell_lab in cell_labels:
             if old_cell_labels == None or cell_lab not in old_cell_labels:
                 cell_index = 0
-                areas, perims = [], []
+                areas, perims, pressures = [], [], []
                 for t, v in colonies.items():
                     if [c.pressure for c in v.cells if c.label == cell_lab] != []:
                         cell_data['Cell_Labels'].append(cell_lab)
                         cell_data['Index_Cell_Labels'].append(cell_lab)
                         cell_data['Pressures'].append([c.pressure for c in v.cells if c.label == cell_lab][0])
+                        cell_data['Normalized_Pressures'].append(([c.pressure for c in v.cells if c.label == cell_lab][0] - min_pres)/float(max_pres - min_pres))
                         cell_data['Cell_Time'].append(int(t))
                         cell_data['Index_Cell_Time'].append(int(t))
                         [areas.append([c.area() for c in v.cells if c.label == cell_lab][0])]
+                        [pressures.append([c.pressure for c in v.cells if c.label == cell_lab][0])]
                         [perims.append([c.perimeter() for c in v.cells if c.label == cell_lab][0])]
                         if cell_index == 0:
                             cell_data['Change_in_area'].append(0)
+                            cell_data['Change_in_pressure'].append(0)
                             cell_data['Binary_area_change'].append('Initial Area')
                             cell_data['Change_in_perimeter'].append(0)
                             cell_data['Binary_perim_change'].append('Initial Perimeter')
@@ -3613,6 +3985,7 @@ class manual_tracing_multiple:
                         else:
                             cell_data['Change_in_area'].append(areas[cell_index] - areas[cell_index - 1])
                             cell_data['Change_in_perimeter'].append(perims[cell_index] - perims[cell_index - 1])
+                            cell_data['Change_in_pressure'].append(pressures[cell_index] - pressures[cell_index - 1])
                             if areas[cell_index] > areas[cell_index - 1]:
                                 cell_data['Binary_area_change'].append('Increasing Area')
                             else:
@@ -3635,7 +4008,7 @@ class manual_tracing_multiple:
         if new_colony_range != {}:
             old_labels = labels
             old_cell_labels = cell_labels
-            self.seaborn_plot(ax,  new_colony_range, data, cell_data, old_labels, old_cell_labels,  counter + 1)
+            self.seaborn_plot(ax,  new_colony_range, data, cell_data, old_labels, old_cell_labels,  counter + 1, min_ten, max_ten, min_pres, max_pres)
             edges_dataframe = pd.DataFrame(data)
             edges_dataframe.set_index(['Index_Edge_Labels', 'Index_Time'], inplace = True)
             cells_dataframe = pd.DataFrame(cell_data)
