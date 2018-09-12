@@ -8,6 +8,7 @@ import numpy.linalg as la
 import collections
 import scipy.linalg as linalg 
 from scipy.optimize import minimize
+from scipy import stats
 from matplotlib import cm
 import itertools
 import math
@@ -18,6 +19,7 @@ from collections import defaultdict
 import pylab
 import scipy
 from scipy.optimize import basinhopping
+from scipy.optimize import differential_evolution
 import seaborn as sns
 import pandas as pd
 import random
@@ -444,7 +446,10 @@ class edge:
             cosang = np.dot(this_vec, other_vec)
             #sinang = np.linalg.norm(np.cross(this_vec, other_vec))
             sinang = np.cross(this_vec, other_vec)
-            return np.rad2deg(np.arctan2(sinang, cosang))  # maybe use %(2*np.pi)
+
+            #return np.rad2deg(np.arctan2(sinang, cosang))  # maybe use %(2*np.pi)
+            return np.degrees(np.math.atan2(np.linalg.det([this_vec,other_vec]),np.dot(this_vec,other_vec)))
+            #return np.arccos(np.clip(np.dot(this_vec/np.linalg.norm(this_vec), other_vec/np.linalg.norm(other_vec)), -1.0, 1.0))
 
             # Dave's method
             # this_ang = np.arctan2(this_vec[1], this_vec[0])
@@ -641,6 +646,8 @@ class edge:
         # Find angles of these connected edges
         angles1 = [self.edge_angle(e2)  for e2 in con_edges0]
 
+        # print('First', angles1)
+
         # Find either a max negative angle or min positive angle
         if ty == 1:
             angle_node0 = max([n for n in angles1 if n<0], default = 9000)
@@ -666,8 +673,10 @@ class edge:
             
                 # Call recursion algorithm
                 p = 1
+                # print('max', max_iter)
                 cells = self.recursive_cycle_finder([self], edge1, ty, cell_nodes, cell_edges, p, max_iter)
-            
+
+                # print(cells)
             else:
                 # two edge cell
                 cells = cell(list(self.nodes),[edge, edge1])
@@ -695,8 +704,10 @@ class edge:
 
         # Set final node
         final_node = self.node_b
+        # print(p, 'start')
 
         if p > max_iter:
+            print('how')
             return []
         else:
             # find the index of common and non common nodes between edge1 and edge2
@@ -716,6 +727,7 @@ class edge:
             # Find angles of those edges
             angles1 = [edge2[0].edge_angle(e2)  for e2 in con_edges0]
 
+
             # Find max negative or min positive angle
             if ty == 1:
                 angle_node0 = max([n for n in angles1 if n<0], default = 9000)
@@ -723,6 +735,23 @@ class edge:
             # min positive number from node 0
                 angle_node0 = min([n for n in angles1 if n>0], default = 9000)
 
+            # print('all_angles', angles1)
+
+            # BEGIN HACKY BLOCK
+
+            # if all(i < 0 for i in angles1) and ty == 0 and len(angles1) != 0:
+            #     if angles1[0] == -177.92477691580484:
+            #         angle_node0 = angles1[0]
+            #     else:
+            #         angle_node0 = angles1[1]
+
+
+            # if all(i > 0 for i in angles1) and ty == 1 and len(angles1) != 0:
+            #     angle_node0 = angles1[1]
+
+            # END HACKY BLOCK, PLS REMOVE IF NOT FEEL LIKE HACKY
+
+            # print('angle', angle_node0)
             # CHeck that its not 9000, if it is, stop recursion - no cells
             if angle_node0 != 9000:
                 # find edge corresponding to the angle 
@@ -737,7 +766,15 @@ class edge:
                 if other_node == final_node:
                     # found a cell
                     cell_edges.append(edge3[0])
-                    cells = cell(cell_nodes, cell_edges)
+
+                    # HACKY STUFF< PLS REMOVE IF STATEMENT
+                    if len(cell_edges) != 11 and len(cell_edges) != 12:
+                        cells = cell(cell_nodes, cell_edges)
+                        # print('found')
+
+                    # cells = cell(cell_nodes, cell_edges)
+                    # print('found')
+
                     return cells
                 else:
                     # Add other_node (the only new node) to the list of cell_nodes
@@ -1102,11 +1139,7 @@ class colony:
 
         # Use Solve_constrained_lsq
 
-        ## MAIN SOLVER
-        # Used in cellfit paper
-        A = self.make_tension_matrix(nodes, edges)
-        if solver == 'KKT':
-            tensions, P = self.solve_constrained_lsq(A, 0, None)
+
 
         # New scipy minimze solver
         if nodes == None:
@@ -1115,8 +1148,18 @@ class colony:
         if edges == None:
             edges = self.tot_edges
 
+        ## MAIN SOLVER
+        # Used in cellfit paper
+
+        
+        
+        if solver == 'KKT':
+            A = self.make_tension_matrix(nodes, edges)
+            tensions, P = self.solve_constrained_lsq(A, 0, None)
+
         # Try scipy minimize 
         if solver == None:
+            A = self.make_tension_matrix(nodes, edges)
             sol = self.scipy_opt_minimze(edges, **kwargs)
 
             tensions = sol.x
@@ -1176,12 +1219,41 @@ class colony:
                     print('Initial Tension guess is', x0)
                     
                     print('Trying L-BFGS')
-                    # Run basin hopping
-                    minimizer_kwargs = {"method": "L-BFGS-B", "bounds" : bnds} # used only BFGS and no bounds before
-                    #sol = basinhopping(self.objective_function_tension, x0, T = 0.5, interval = 10,  minimizer_kwargs=minimizer_kwargs, niter=100, disp = True)
 
+                    # Correct BLOCK
+
+                    # #Run basin hopping
+                    minimizer_kwargs = {"method": "L-BFGS-B", "bounds" : bnds} # used only BFGS and no bounds before
+                    sol = basinhopping(self.objective_function_tension, x0, T = 0.5, interval = 10,  minimizer_kwargs=minimizer_kwargs, niter=100,  stepsize = 0.05, disp = True)
+                    zoom = sol['x']
+                    print(zoom)
                     # Run normal L-BFGS
-                    sol = minimize(self.objective_function_tension, x0, method = 'L-BFGS-B', bounds = bnds, options = {**kwargs})
+                    sol = minimize(self.objective_function_tension, zoom, method = 'L-BFGS-B', bounds = bnds, options = {**kwargs}, tol = 1e-9)
+
+
+                    # END CORRECT BLOCK
+                    # sols = []
+                    # for j, i in enumerate(range(10)):
+                    #     lower = np.random.uniform(0, 0.5, len(edges))
+                    #     upper = lower + 0.5
+                    #     # print(len(lower), len(upper), len(x0))
+                    #     bnds = [(l, u) for (l, u) in zip(lower, upper)]
+                    #     # print(bnds)
+                    #     # for k, xxx in enumerate(x0):
+                    #     #     x0[k] = random.randint(0,101)/100
+                    #     sols.append([minimize(self.objective_function_tension,  x0, bounds = bnds)])
+                    #     print(sols[j][0].fun, sols[j][0].success)
+                        
+
+                    # print(sols)
+                    # idx = np.argmin([sol[0].fun for sol in sols if sol[0].success == True])
+                    # sol = sols[idx][0]
+
+                    # print('Trying differential_evolution')
+                    # sol = differential_evolution(self.objective_function_tension, bnds,  strategy = 'best1bin')
+
+
+
                     #sol = minimize(self.objective_function_tension, x0, method = 'Nelder-Mead', bounds = bnds, options = {**kwargs})
 
                     # Run Cellfit stuff
@@ -1224,13 +1296,18 @@ class colony:
                     # If all initial guesses are the same, use random initial guesses
                     # for k, xxx in enumerate(x0):
                     #     x0[k] = random.randint(0,101)/10000
-                    print('Initial pressure guess is', x0)
-                    minimizer_kwargs = {"method": "L-BFGS-B", "bounds" : bnds}
-                    print('Trying L-BFGS')
-                    #sol = basinhopping(self.objective_function_pressure, x0, minimizer_kwargs=minimizer_kwargs, niter=2, disp = True)
 
-                    # RUn normal
+                    # BEGIN CORRECT BLOCK
+
+                    # print('Initial pressure guess is', x0)
+                    # minimizer_kwargs = {"method": "L-BFGS-B", "bounds" : bnds}
+                    # print('Trying L-BFGS')
+                    # #sol = basinhopping(self.objective_function_pressure, x0, minimizer_kwargs=minimizer_kwargs, niter=2, disp = True)
+
+                    # # RUn normal
                     sol = minimize(self.objective_function_pressure, x0, method = 'L-BFGS-B', bounds = bnds, options = {**kwargs})
+
+                    # END CORRECT BLOCK
 
                     # Run Cellfit stuff
                     #sol = minimize(self.objective_function_pressure, x0, method = 'SLSQP', constraints = cons)
@@ -1322,7 +1399,7 @@ class colony:
                     guess = (guess_a + guess_b)/2 if guess_a != 0 and guess_b != 0 else\
                             guess_a if guess_b == 0 and guess_a != 0 else\
                             guess_b if guess_a == 0 and guess_b != 0 else\
-                            0.14
+                            0.2
                     I.append(guess)
                     # Update the guess tension used
                     e_or_c.guess_tension = I[j]
@@ -2405,12 +2482,24 @@ class data:
     def find_cycles(edges):
 
         # Set max iterations for cycle finding
-        max_iter = 100
+        max_iter = 300
         # Set initial cells
         cells = []
 
         # My method
         for e in edges:
+            cell = e.which_cell(edges, 0, max_iter)
+            check = 0
+            if cell != []:
+                for c in cells:
+                    if set(cell.edges) == set(c.edges):
+                        check = 1
+                if check == 0:
+                    for edge in cell.edges:
+                        edge.cells = cell
+                    cells.append(cell)
+
+
             cell = e.which_cell(edges, 1, max_iter)
             check = 0
             if cell != []:
@@ -2422,16 +2511,6 @@ class data:
                         edge.cells = cell
                     cells.append(cell)
 
-            cell = e.which_cell(edges, 0, max_iter)
-            check = 0
-            if cell != []:
-                for c in cells:
-                    if set(cell.edges) == set(c.edges):
-                        check = 1
-                if check == 0:
-                    for edge in cell.edges:
-                        edge.cells = cell
-                    cells.append(cell)
 
         return cells
 
@@ -2653,6 +2732,15 @@ class manual_tracing_multiple:
         if type == None:
             self.name_first = 'MAX_20170123_I01_003-Scene-4-P4-split_T'
             self.name_last = '.ome.txt'
+        elif type == 'small_v2':
+            self.name_first = '20170123_I01_003.czi - 20170123_I01_00300'
+            self.name_last = '.txt'
+        elif type == 'small_v3':
+            self.name_first = '7_20170123_I01_003.czi - 20170123_I01_00300'
+            self.name_last = '.txt'
+        elif type == 'small_v4':
+            self.name_first = '002_20170123_I01_002.czi - 20170123_I01_00200'
+            self.name_last = '.txt'
         else:
             self.name_first = 'AVG_20170124_I07_001-Scene-4-P2-100'
             self.name_last = '.txt'
@@ -2670,6 +2758,12 @@ class manual_tracing_multiple:
         """
 
         if number <10 and self.name_first == 'AVG_20170124_I07_001-Scene-4-P2-100':
+            file = self.name_first + str(0) +  str(number) + self.name_last
+        elif number < 10 and self.name_first == '20170123_I01_003.czi - 20170123_I01_00300':
+            file = self.name_first + str(0) +  str(number) + self.name_last
+        elif number < 10 and self.name_first == '7_20170123_I01_003.czi - 20170123_I01_00300':
+            file = self.name_first + str(0) +  str(number) + self.name_last
+        elif number < 10 and self.name_first == '002_20170123_I01_002.czi - 20170123_I01_00200':
             file = self.name_first + str(0) +  str(number) + self.name_last
         else:
             file = self.name_first + str(number) + self.name_last
@@ -2712,10 +2806,16 @@ class manual_tracing_multiple:
                     or 10 <= number <= 11 \
                     or number == 13 or number == 17 else \
                     16 if 14 <= number <= 15 \
-                    or 18 <= number <= 30 else \
+                    or 18 <= number <= 20 or 22 <= number <= 30 else \
                     17 if 8 <= number <= 9 or number == 16 \
                     or number == 16 else \
                     20 if number == 4 else 12
+        elif self.name_first == '20170123_I01_003.czi - 20170123_I01_00300':
+            cutoff = 20
+        elif self.name_first == '7_20170123_I01_003.czi - 20170123_I01_00300':
+            cutoff = 15
+        elif self.name_first == '002_20170123_I01_002.czi - 20170123_I01_00200':
+            cutoff = 15
         else:
             cutoff = 10
 
@@ -2817,7 +2917,9 @@ class manual_tracing_multiple:
 
         # Get list of nodes and edges for names_now
         # No labelling
+
         now_nodes, now_edges, now_cells = self.get_nodes_edges_cells(number_now)
+
 
         # Find the node in now_nodes that is closest to a node in old_nodes and give same label
         for j, prev_node in enumerate(old_nodes):
@@ -2839,8 +2941,44 @@ class manual_tracing_multiple:
         upper_edge_limit = max([e.label for e in old_edges if e.label != []])
 
 
+        # NEW TRY
 
-        # Correct stuff
+        # new_dictionary = []
+
+        # for n in now_nodes:
+        #     if n.label == []:
+        #         n.label = upper_limit + 1
+        #         upper_limit += 1
+
+        # for e in old_edges:
+        #     old_node_labels = [e.node_a.label, e.node_b.label]
+        #     for new_edge in now_edges:
+        #         new_node_labels = [new_edge.node_a.label, new_edge.node_b.label]
+        #         if set(new_node_labels) == set(old_node_labels):
+        #             new_edge.label = e.label
+
+        # for ed in now_edges:
+        #     if ed.label == []:
+        #         for old_ed in old_edges:
+        #             if py_ang(old_ed.unit_vectors()[0], ed.unit_vectors()[0]) < 15 or py_ang(old_ed.unit_vectors()[0], ed.unit_vectors()[1]) < 15 or py_ang(old_ed.unit_vectors()[1], ed.unit_vectors()[0]) < 15 or py_ang(old_ed.unit_vectors()[1], ed.unit_vectors()[1]) < 15:
+        #                 labels = [e.label for e in now_edges]
+        #                 if old_ed.label not in labels:
+
+        #                     ed.label = old_ed.label
+
+        # for ed in now_edges:
+        #     if ed.label == []:
+        #         ed.label = upper_edge_limit + 1
+        #         upper_edge_limit += 1
+
+        # END NEW TRY
+
+
+
+
+
+        # Old stuff
+
         # count = upper_limit
         # for node in now_nodes:
         #     if node.label == []:
@@ -2849,10 +2987,14 @@ class manual_tracing_multiple:
 
         # # Sort now_nodes by label
         # now_nodes = sorted(now_nodes, key = lambda p: p.label)
-        # end of correct stuff
+
+        # end Old stuff
 
 
         # Make a new dictionary for the now_nodes list
+
+        # CORRECT BLOCK
+
         new_dictionary = defaultdict(list)
         total_now_edges = []
 
@@ -2875,14 +3017,19 @@ class manual_tracing_multiple:
                                         temp_edges.append(closest_edge)
                                         if closest_edge not in total_now_edges:
                                             total_now_edges.append(closest_edge)
+                        if len([item for item, count in collections.Counter(temp_edges).items() if count > 1]) != 0:
+                            print('breaking')
+                            temp_edges = []
 
                         #temp_edges = sorted(temp_edges, key = lambda p: p.straight_length)
                         new_vecs = [func(p, node) for p in temp_edges]
+                        # print(new_vecs)
                         for k, p in zip(old_edges_node, temp_edges):
                             #print(p.label, p, k)
                             if p.label == []:
                                 labels = [e.label for e in total_now_edges]
                                 if k.label not in labels:
+                                    # print(k, p)
                                     p.label = k.label
                         new_dictionary[node.label].append(temp_edges)
                         new_dictionary[node.label].append(new_vecs)
@@ -2901,18 +3048,26 @@ class manual_tracing_multiple:
         else:
             count_edge = upper_edge_limit + 1
 
-        # count_edge += count_edge + 1   
+        # count_edge += count_edge + 1 
+
 
         for node in now_nodes:
+            check = 0
             if node.label == []:
                 node.label = count
                 count += 1
-                for e in node.edges:
-                    if e.label == []:
-                        e.label = count_edge
-                        count_edge += 1 
+                check = 1
+                print('node',node.label)
+            for e in node.edges:
+                if e.label == []:
+                    e.label = count_edge
+                    count_edge += 1
+                    check = 1
+                    print('edge',e.label)
+            if check == 1:
                 temp_edges = node.edges
                 new_vecs = [func(p, node) for p in temp_edges]
+                print(temp_edges, new_vecs)
                 new_dictionary[node.label].append(temp_edges)
                 new_dictionary[node.label].append(new_vecs)
         # end of stuff
@@ -2929,6 +3084,10 @@ class manual_tracing_multiple:
                 if len(old_dictionary[label][0]) == len(new_dictionary[label][0]):
                     combined_dict[label].append(old_dictionary[label][0])
                     combined_dict[label].append(new_dictionary[label][0])
+
+        # END CORRECT BLOCK
+
+
 
         now_cells = self.label_cells(now_nodes, old_cells, now_cells)
 
@@ -3007,7 +3166,7 @@ class manual_tracing_multiple:
 
         return now_nodes, now_cells, edges2
 
-    def first_computation(self, number_first, solver = None, **kwargs):
+    def first_computation(self, number_first, solver = None, type = None, **kwargs):
         """
         Main first computation
         Retuns a colony at number_first
@@ -3021,11 +3180,16 @@ class manual_tracing_multiple:
         nodes, dictionary, cells, edges = self.initial_numbering(number_first)
 
         edges2 = [e for e in edges if e.radius is not None]
-        name = str(number_first)
+
+        if type == 'Jiggling':
+            name = str(0)
+        else:
+            name = str(number_first)
+
         colonies[name] = colony(cells, edges2, nodes)
 
-        tensions, P_T, A = colonies[name].calculate_tension(solver, **kwargs)
-        pressures, P_P, B = colonies[name].calculate_pressure(solver, **kwargs)
+        tensions, P_T, A = colonies[name].calculate_tension(solver = solver, **kwargs)
+        pressures, P_P, B = colonies[name].calculate_pressure(solver = solver, **kwargs)
 
         colonies[name].tension_matrix = A
         colonies[name].pressure_matrix = B
@@ -3045,15 +3209,16 @@ class manual_tracing_multiple:
         """
 
         if colonies == None:
-            colonies, old_dictionary = self.first_computation(numbers[0], solver, **kwargs)
-            colonies[str(numbers[0])].dictionary = old_dictionary
+            colonies, old_dictionary = self.first_computation(numbers[0], solver, type = 'Jiggling', **kwargs)
+            print(colonies)
+            colonies[str(0)].dictionary = old_dictionary
             index = 0
 
-
-        colonies[str(index + 1)], new_dictionary = self.track_timestep(colonies[str(numbers[index])], old_dictionary, numbers[index + 1])
+        print(index, numbers[index], numbers[index + 1])
+        colonies[str(index + 1)], new_dictionary = self.track_timestep(colonies[str(index)], old_dictionary, numbers[index + 1])
         colonies[str(index + 1)].dictionary = new_dictionary
-        tensions, P_T, A = colonies[str(index+1)].calculate_tension(**kwargs)
-        pressures, P_P, B = colonies[str(index+1)].calculate_pressure(**kwargs)
+        tensions, P_T, A = colonies[str(index+1)].calculate_tension(solver = solver, **kwargs)
+        pressures, P_P, B = colonies[str(index+1)].calculate_pressure(solver = solver, **kwargs)
 
         # Save tension and pressure matrix
         colonies[str(index+1)].tension_matrix = A
@@ -3062,7 +3227,7 @@ class manual_tracing_multiple:
         index = index + 1
         if index < len(numbers) - 1:
             print('ok')
-            colonies = self.jiggling_computation_based_on_prev(numbers, colonies, index, new_dictionary, **kwargs)
+            colonies = self.jiggling_computation_based_on_prev(numbers, colonies, index, new_dictionary, solver,  **kwargs)
 
         return colonies
 
@@ -3389,7 +3554,10 @@ class manual_tracing_multiple:
         for j, i in enumerate(frames):
             dictionary = colonies[str(i)].dictionary
             try:
-                edd = dictionary[node_label][0][edge_label]
+                # for node edge plotting
+                #edd = dictionary[node_label][0][edge_label]
+                # for edge plotting based on edge label
+                edd = [e for e in colonies[str(i)].tot_edges if e.label == edge_label][0]
                 tensions.append(edd.tension)
                 radii.append(edd.radius)
                 length.append(edd.straight_length)
@@ -3431,7 +3599,8 @@ class manual_tracing_multiple:
             [e.plot(ax) for e in edges]
  #           [n.plot(ax, markersize = 10) for n in nodes if n.label == node_label]
 
-            current_edge = dictionary[node_label][0][edge_label]
+            #current_edge = dictionary[node_label][0][edge_label]
+            current_edge = [e for e in colonies[str(i)].tot_edges if e.label == edge_label][0]
             [current_edge.plot(ax, lw=3, color = 'red')]
 
             fname = '_tmp%05d.png'%int(j)   
@@ -3463,6 +3632,7 @@ class manual_tracing_multiple:
             ax4.plot(frames, change_in_length, 'blue')
             ax4.set_ylabel('Change in length', color='blue')
             ax4.tick_params('y', colors='blue')
+
 
     def plot_single_edges(self, fig, ax, ax1, ax3, colonies, node_label, edge_label):
 
@@ -3713,6 +3883,22 @@ class manual_tracing_multiple:
         repeat_edge_labels = set(labels[0]).intersection(*labels)
         return list(repeat_edge_labels)
 
+    def get_repeat_cell(self, colonies):
+        labels = []
+        for t, v in colonies.items():    
+            labels.append([c.label for c in v.cells if c.label != []])
+
+        repeat_cell_labels = set(labels[0]).intersection(*labels)
+        return list(repeat_cell_labels)
+
+    def get_repeat_nodes(self, colonies):
+        labels = []
+        for t, v in colonies.items():    
+            labels.append([n.label for n in v.tot_nodes if n.label != []])
+
+        repeat_node_labels = set(labels[0]).intersection(*labels)
+        return list(repeat_node_labels)
+
     def simple_plot_all_edges(self, fig, ax, colonies):
 
         labels = self.get_repeat_edge(colonies)
@@ -3888,9 +4074,500 @@ class manual_tracing_multiple:
             ax4.set_ylabel('Change in Area', color='blue')
             ax4.tick_params('y', colors='blue')
 
-    def seaborn_plot(self, ax, colonies, data = None, cell_data = None, old_labels = None, old_cell_labels = None, counter = None, min_ten = None, max_ten = None, min_pres = None, max_pres = None):
+    def seaborn_cells_dataframe_tensor(self, colonies, jump_number = 1, data = None):
+
+        initial_index = [int(k) for k,v in colonies.items()][0]
+        # labels = [e.label for e in colonies[str(initial_index)].cells if e.label != []]
+        # labels = sorted(labels)
+
+        if data is None:
+            data = {'Index_Time': [], 'Time': [], 'Velocity_x': [], 'Velocity_y': [],'x_pos': [], 'y_pos': [],'u_translational': [], \
+             'v_translational': [], 'ux_translational': [], 'uy_translational': [], 'vx_translational': [],'vy_translational': [], \
+              'Velocity_gradient_tensor': [], 'Rotation': [], 'Strain_rate': [], 'Rate_of_area_change': [], 'Eigenvalues_strain_1': [],\
+               'Eigenvalues_strain_2': [], 'Eigenvectors_strain': [],'Eigenvectors_strain_1': [],'Eigenvectors_strain_2': [], \
+               'Eigenvalues_rotation': [], 'Eigenvectors_rotation': [], 'First_invariant': [], 'Second_invariant': [], \
+               'Mean_resid': [], 'Std_resid': [], 'Mean_tension': [], 'Mean_pressure': [], 'Area': [], 'Perimeter': [], \
+               'Number_of_edges': [], 'Length_of_edges': [], 'Radius_of_edges': [], 'Std_tension': [], 'Change_in_mean_tension': [], 'Change_in_std_tension': [],\
+               'Std_pressure': [], 'Area_std': [], 'Perimeter_std': [], 'Number_of_edges_std': [],'Count_topology': [],'Change_in_connectivity': [], 'Length_of_edges_std': [], 'Radius_of_edges_std': []}                  
+            tensor_dataframe = pd.DataFrame(data)
+            tensor_dataframe.set_index(['Index_Time'], inplace = True)
+
+
+        for t, v in colonies.items():
+
+            # Intial 0
+
+            if int(t) == [int(k) for k,v in colonies.items()][-1]:
+                pass
+                # data['Index_Time'].append(int(t))
+                # data['Time'].append(int(t))
+                # data['Velocity_x'].append(0)
+                # data['Velocity_y'].append(0)
+                # data['x_pos'].append(0)
+                # data['y_pos'].append(0)
+                # data['Velocity_gradient_tensor'].append(0)
+                # data['Rotation'].append(0)
+                # data['Strain_rate'].append(0)
+                # data['Rate_of_area_change'].append(0)
+                # data['Eigenvalues_strain_1'].append(0)
+                # data['Eigenvalues_strain_2'].append(0)
+                # data['Eigenvectors_strain'].append(0)
+                # data['Eigenvalues_rotation'].append(0)
+                # data['Eigenvectors_rotation'].append(0)
+                # data['First_invariant'].append(0)
+                # data['Second_invariant'].append(0)
+                # data['ux_translational'].append(0)
+                # data['uy_translational'].append(0)
+                # data['vx_translational'].append(0)
+                # data['vy_translational'].append(0)
+                # data['Eigenvectors_strain_1'].append(0)
+                # data['Eigenvectors_strain_2'].append(0)
+                # data['u_translational'].append(0)
+                # data['v_translational'].append(0)
+                # data['Mean_resid'].append(0)
+                # data['Std_resid'].append(0)
+                # data['Mean_tension'].append(0)
+                # data['Std_tension'].append(0)
+                # data['Mean_pressure'].append(0)
+                # data['Std_pressure'].append(0)
+
+                # data['Area'].append(0)
+                # data['Area_std'].append(0)
+                # data['Perimeter'].append(0)
+                # data['Perimeter_std'].append(0)
+                # data['Number_of_edges'].append(0)
+                # data['Number_of_edges_std'].append(0)
+                # data['Length_of_edges'].append(0)
+                # data['Length_of_edges_std'].append(0)
+                # data['Radius_of_edges'].append(0)
+                # data['Radius_of_edges_std'].append(0)
+
+
+            # Check that its not the last one
+
+            if int(t) < [int(k) for k,v in colonies.items()][-1]:
+                # define new colony as this time frame and the next
+                new_colony_range = dict((k, v) for k, v in colonies.items() if int(t) <= int(k) <= int(t) + jump_number)
+
+                labels = self.get_repeat_cell(new_colony_range)
+                nodes_labels = self.get_repeat_nodes(new_colony_range)
+
+                min_t = [int(t) for t, v in new_colony_range.items()][0]
+                print(new_colony_range)
+                x_pos1, y_pos1, x_pos2, y_pos2, total_con_labels_1, total_con_labels_2 = [], [], [], [], [], []
+                tension_mean_1, tension_mean_2, tension_std_1, tension_std_2 = [], [], [], []
+                for t, v in new_colony_range.items():
+
+                    cells = sorted(v.cells, key = lambda x: x.label)
+                    for c in cells:
+                        if c.label in labels:
+
+                            xc, yc = c.centroid()[0], c.centroid()[1]
+                            if int(t) == min_t:
+                                x_pos1.append(xc)
+                                y_pos1.append(yc)
+                            else:
+                                x_pos2.append(xc)
+                                y_pos2.append(yc)
+
+                    sorted_nodes = sorted(v.tot_nodes, key = lambda x: x.label)
+
+                    for n in sorted_nodes:
+                        if n.label in nodes_labels:
+                            con_labels = [e.label for e in n.edges]
+                            if int(t) == min_t:
+                                total_con_labels_1.append(con_labels)
+                            else:
+                                total_con_labels_2.append(con_labels)
+                    if int(t) == min_t:
+                        tension_mean_1 = np.mean(np.array([e.tension for e in v.tot_edges]))
+                        tension_std_1 = np.std(np.array([e.tension for e in v.tot_edges]))
+                    else:
+                        tension_mean_2 = np.mean(np.array([e.tension for e in v.tot_edges]))
+                        tension_std_2 = np.std(np.array([e.tension for e in v.tot_edges]))
+
+
+
+                for t, v in new_colony_range.items():
+
+                    if int(t) == min_t:
+
+                        residuals = []
+                        for n in v.tot_nodes:
+                            x  = [e.tension for e in v.tot_edges]
+                            if len(n.edges) > 2:
+                                tensions  =[]
+                                indices = n.edge_indices
+                                for i in range(len(indices)):
+                                    tensions.append([x[indices[i]]])
+                                tensions = np.array(tensions)
+
+                                node_vecs = n.tension_vectors
+                                tension_vecs = np.multiply(node_vecs, tensions)
+                                tension_vec_mags = [np.hypot(*vec) for vec in tension_vecs]
+                                resid_vec = np.sum(tension_vecs, 0)  
+                                resid_mag = np.hypot(*resid_vec)
+                                residuals.append(resid_mag)
+                        data['Mean_resid'].append(np.mean(np.array(residuals)))
+                        data['Std_resid'].append(np.std(np.array(residuals)))
+
+                        data['Mean_tension'].append(np.mean(np.array([e.tension for e in v.tot_edges])))
+                        data['Std_tension'].append(np.std(np.array([e.tension for e in v.tot_edges])))
+                        data['Mean_pressure'].append(np.mean(np.array([c.pressure for c in v.cells])))
+                        data['Std_pressure'].append(np.std(np.array([c.pressure for c in v.cells])))
+
+                        data['Change_in_mean_tension'].append(tension_mean_2 - tension_mean_1)
+                        data['Change_in_std_tension'].append(tension_std_2 - tension_std_1)
+
+
+                        data['Area'].append(np.mean(np.array([c.area() for c in v.cells])))
+                        data['Area_std'].append(np.std(np.array([c.area() for c in v.cells])))
+                        data['Perimeter'].append(np.mean(np.array([c.perimeter() for c in v.cells])))
+                        data['Perimeter_std'].append(np.std(np.array([c.perimeter() for c in v.cells])))
+                        data['Number_of_edges'].append(np.mean(np.array([len(n.edges) for n in v.tot_nodes])))
+                        data['Number_of_edges_std'].append(np.std(np.array([len(n.edges) for n in v.tot_nodes])))
+                        data['Length_of_edges'].append(np.mean(np.array([e.straight_length for e in v.tot_edges])))
+                        data['Length_of_edges_std'].append(np.std(np.array([e.straight_length for e in v.tot_edges])))
+                        data['Radius_of_edges'].append(np.mean(np.array([e.radius for e in v.tot_edges])))
+                        data['Radius_of_edges_std'].append(np.std(np.array([e.radius for e in v.tot_edges])))
+
+                        Number_of_topology_changes = 0
+                        Change_in_number = 0
+
+                        for k, v in zip(total_con_labels_1, total_con_labels_2):
+                            try:
+                                if set(k) != set(v):
+                                    Number_of_topology_changes += 1
+                                    print(int(t), k, v)
+                            except:
+                                pass
+                            if len(k) != len(v):
+                                Change_in_number += 1
+
+                        data['Count_topology'].append(Number_of_topology_changes)
+                        data['Change_in_connectivity'].append(Change_in_number)
+
+
+                        u = np.array(x_pos2) - np.array(x_pos1)
+                        v = np.array(y_pos2) - np.array(y_pos1)
+                        data['Index_Time'].append(int(t))
+                        data['Time'].append(int(t))
+                        data['Velocity_x'].append(np.mean(u))
+                        data['Velocity_y'].append(np.mean(v))
+                        data['x_pos'].append(np.mean(x_pos1))
+                        data['y_pos'].append(np.mean(y_pos1))
+                        dudx, intercept_ux, r_value_ux, p_value_ux, std_err_ux = stats.linregress(x_pos1,u)
+                        dudy, intercept_uy, r_value_uy, p_value_uy, std_err_uy = stats.linregress(y_pos1,u)
+                        dvdx, intercept_vx, r_value_vx, p_value_vx, std_err_vx = stats.linregress(x_pos1,v)
+                        dvdy, intercept_vy, r_value_vy, p_value_vy, std_err_vy = stats.linregress(y_pos1,v)
+
+                        data['ux_translational'].append(intercept_ux)
+                        data['uy_translational'].append(intercept_uy)
+                        data['u_translational'].append(np.sqrt(intercept_uy**2 + intercept_ux**2))
+                        data['v_translational'].append(np.sqrt(intercept_vy**2 + intercept_vx**2))
+                        data['vx_translational'].append(intercept_vx)
+                        data['vy_translational'].append(intercept_vy)
+
+                        tensor = np.array([[dudx,dudy], [dvdx,dvdy]])
+                        data['Velocity_gradient_tensor'].append(tensor)
+                        omega = (tensor - tensor.T)/2
+                        strain = (tensor + tensor.T)/2
+
+                        data['Rotation'].append(omega)
+                        data['Strain_rate'].append(strain)
+                        trace = strain[0,0] + strain[1,1]
+                        data['Rate_of_area_change'].append(trace)
+                        w, v = np.linalg.eig(strain)
+
+                        data['Eigenvalues_strain_1'].append(w[0])
+                        data['Eigenvalues_strain_2'].append(w[1])
+                        data['Eigenvectors_strain'].append(v)
+                        v = v.T
+                        angle1 = np.rad2deg(np.arctan2(v[0][1], v[0][0])) 
+                        angle2 = np.rad2deg(np.arctan2(v[1][1], v[1][0])) 
+
+                        data['Eigenvectors_strain_1'].append(angle1)
+                        data['Eigenvectors_strain_2'].append(angle2)
+
+                        w2, v2 = np.linalg.eig(omega)
+                        print(np.imag(w2[1]))
+                        # data['Eigenvalues_rotation'].append(np.imag(w2[1]))
+                        data['Eigenvalues_rotation'].append(omega[0,1])
+                        data['Eigenvectors_rotation'].append(v2)
+
+                        P = -tensor[0,0] - tensor[1,1]
+                        Q = 1/2*P**2 -1/2*tensor[1,0] * tensor[0,1] -1/2 *tensor[0,1]*tensor[1,0] - 1/2 *tensor[0,0] * tensor[0,0] -1/2 *tensor[1,1] * tensor[1,1]
+                        data['First_invariant'].append(P)
+                        data['Second_invariant'].append(Q)
+
+
+
+        tensor_dataframe = pd.DataFrame(data)
+        tensor_dataframe.set_index(['Index_Time'], inplace = True)
+        return tensor_dataframe
+                
+    def plot_tensor_dataframe(self,ax,  colonies, tensor_dataframe):
+
+        count = 0
+        for t,v in colonies.items():
+            if int(t) < [int(t) for t, v in colonies.items()][-1]:
+
+                #tensor_first = tensor_dataframe.Rotation[[int(t) for t, v in colonies.items()][0]]
+                tensor_first = tensor_dataframe.Strain_rate[[int(t) for t, v in colonies.items()][0]]
+
+                #tensor_first = tensor_dataframe.Velocity_gradient_tensor[[int(t) for t, v in colonies.items()][0]]
+
+                radius = max(abs(np.sqrt(tensor_first[0,0]**2 + tensor_first[0,1]**2)), abs(np.sqrt(tensor_first[1,1]**2 + tensor_first[1,0]**2)))
+                circle1 = plt.Circle((0, 0), radius, fill = False)
+                ax.add_artist(circle1)
+                ax.set_aspect(1)
+                ax.set(xlim = [-0.06, 0.06], ylim = [-0.06, 0.06])
+
+                #tensor = tensor_dataframe.Rotation[int(t)]
+                tensor = tensor_dataframe.Strain_rate[int(t)]
+                tensor_rotation = tensor_dataframe.Rotation[int(t)]
+                #tensor = tensor_dataframe.Velocity_gradient_tensor[int(t)]
+
+
+                # pt1_u = [tensor[0,0], tensor[0,1]]
+                # pt2_u = [-tensor[0,0], -tensor[0,1]]
+                # pt1_u = [tensor[0,0], 0]
+                # pt2_u = [-tensor[0,0], 0]
+                w, v = np.linalg.eig(tensor)
+
+                # f, m = np.linalg.eig(tensor_rotation)
+                angle = tensor_rotation[0,1]
+
+                # For rotation matrix
+                # w = [np.imag(i) for i in w]
+
+                v = v.T
+
+                # pt1_u = [w[0], 0]
+                # pt2_u = [-w[0], 0]
+                pt1_u = -w[0] * v[0]
+                pt2_u = +w[0] * v[0]
+
+
+                pts_u = [pt1_u, pt2_u]
+                x_u, y_u = zip(*pts_u)
+
+                # pt1_v = [tensor[1,0], tensor[1,1]]
+                # pt2_v = [-tensor[1,0], -tensor[1,1]]
+                # pt1_v = [0, tensor[1,1]]
+                # pt2_v = [0, -tensor[1,1]]
+                # pt1_v = [0, w[0]]
+                # pt2_v = [0, -w[0]]
+
+                pt1_v = -w[1] * v[1]
+                pt2_v = +w[1] * v[1]
+
+                pts_v = [pt1_v, pt2_v]
+                x_v, y_v = zip(*pts_v)
+
+
+                # Old stuff
+
+                # For rotation matrix
+                # w = [np.imag(i) for i in w]
+
+                # pt1_u = [w[0], 0]
+                # pt2_u = [-w[0], 0]
+
+
+
+                # pts_u = [pt1_u, pt2_u]
+                # x_u, y_u = zip(*pts_u)
+
+                # # pt1_v = [tensor[1,0], tensor[1,1]]
+                # # pt2_v = [-tensor[1,0], -tensor[1,1]]
+                # # pt1_v = [0, tensor[1,1]]
+                # # pt2_v = [0, -tensor[1,1]]
+                # pt1_v = [0, w[0]]
+                # pt2_v = [0, -w[0]]
+
+                # pts_v = [pt1_v, pt2_v]
+                # x_v, y_v = zip(*pts_v)
+
+                if tensor[0,0] > 0:
+                    ax.plot(x_u, y_u, color = 'blue')
+                else:
+                    ax.plot(x_u, y_u, color = 'red')
+
+                if tensor[1,1] > 0:
+                    ax.plot(x_v, y_v, color = 'blue')
+                else:
+                    ax.plot(x_v, y_v, color = 'red')
+
+                if angle > 0:
+                    center, th1, th2 = (0,0), 0, 180
+                    #ax.annotate("", xy=(-(radius + 0.01), 0), arrowprops=dict(arrowstyle="->"))
+                    ax.arrow(-(radius + 0.01), 0.005, 0, -0.005, color = 'green')
+                else:
+                    center, th1, th2 = (0,0), 180, 0
+                    ax.arrow((radius + 0.01), -0.005, 0, 0.005, color = 'green')
+
+                print(th1, th2)
+
+                patch = matplotlib.patches.Arc(center, 2*(radius + 0.01), 2*(radius + 0.01),
+                                               0, th1, th2, color = 'green')
+                ax.add_patch(patch)
+
+
+
+                fname = '_tmp%05d.png'%int(count) 
+                plt.tight_layout()  
+                plt.savefig(fname)
+                plt.clf() 
+                plt.cla() 
+                plt.close()
+                fig, ax = plt.subplots(1,1, figsize = (8,5)) 
+                count += 1
+
+        fps = 1
+        os.system("rm movie_strain_rate.mp4")
+        os.system("ffmpeg -r "+str(fps)+" -b 1800 -i _tmp%05d.png movie_strain_rate.mp4")
+        os.system("rm _tmp*.png")
+
+        plt.cla()
+        plt.clf()
+        plt.close()
+
+        
+
+
+
+
+
+        # w, v = np.linalg.eig(tensor)
+        # vectors = w *v 
+
+        # print(w)
+        # print(v)
+        # print(vectors)
+
+        # for j, s in enumerate(w):
+        #     if s > 0:
+        #         ax.plot(vectors[j].real, vectors[j].imag, color = 'blue')
+        #     else:
+        #         ax.plot(vectors[j].real, vectors[j].imag, color = 'red')
+
+        # strain_eigenvectors = tensor_dataframe.Eigenvectors_strain[t]
+        # strain_eigenvalues = tensor_dataframe.Eigenvalues_strain[t]
+        # strain_vectors = strain_eigenvalues * strain_eigenvectors
+
+        # rotation_eigenvectors = tensor_dataframe.Eigenvectors_rotation[t]
+        # rotation_eigenvalues = tensor_dataframe.Eigenvalues_rotation[t]
+        # rotation_vectors = rotation_eigenvalues * rotation_eigenvectors
+
+        # plt.Circle((1,1), radius = max(strain_eigenvalues), fill = 'False')
+        # for j, s in enumerate(strain_eigenvalues):
+
+        #     if s > 0:
+        #         ax.plot(strain_vectors[j] + [1,1] + , color = 'red')
+        #     else:
+        #         ax.plot(strain_vectors[j] + [1,1], color = 'blue')
+
+        # plt.Circle((-1,1), radius = max(rotation_eigenvalues), fill = 'False')
+        # for j, s in enumerate(rotation_eigenvalues):
+
+        #     if s > 0:
+        #         ax.plot(np.imag(rotation_vectors[j]) + [-1,1], color = 'red')
+        #     else:
+        #         ax.plot(np.imag(rotation_vectors[j]) + [-1,1], color = 'blue')
+
+
+
+
+
+
+    def seaborn_nodes_dataframe(self, colonies, data, old_labels = None, counter = None):
+
+        initial_index = [int(k) for k,v in colonies.items()][0]
+        labels = [e.label for e in colonies[str(initial_index)].tot_nodes if e.label != []]
+        labels = sorted(labels)
+
+        if data is None:
+            data = {'Index_Node_Label': [],'Index_Time': [], 'Time': [], 'Number_of_connected_edges':[],'Connected_edge_labels': [],  'Residual': [], 'Change_in_num_con_edges': [], 'Length_of_connected_edges': [], 'Movement_from_prev_t': [], 'Mean_radius_of_connected_edges': [], 'Node_Label': [], 'Mean_Tension': [], 'Change_in_mean_tension': []}
+            nodes_dataframe = pd.DataFrame(data)
+            nodes_dataframe.set_index(['Index_Node_Label','Index_Time'], inplace = True)
+
+        for lab in labels:
+            if old_labels == None or lab not in old_labels:
+                tensions, num_of_con_edges = [], []
+                node_index = 0
+                locs = []
+                for t, v in colonies.items():
+                    if [len(n.edges) for n in v.tot_nodes if n.label == lab] != []:
+                        x  = [e.tension for e in v.tot_edges]
+                        if [len(n.edges) for n in v.tot_nodes if n.label == lab][0] > 2:
+                            start_tensions  =[]
+                            node1 = [n for n in v.tot_nodes if n.label == lab][0]
+                            indices = node1.edge_indices
+                            for i in range(len(indices)):
+                                start_tensions.append([x[indices[i]]])
+                            start_tensions = np.array(start_tensions)
+
+                            node_vecs = node1.tension_vectors
+                            tension_vecs = np.multiply(node_vecs, start_tensions)
+                            tension_vec_mags = [np.hypot(*vec) for vec in tension_vecs]
+                            resid_vec = np.sum(tension_vecs, 0)  
+                            resid_mag = np.hypot(*resid_vec)
+                        else:
+                            resid_mag = np.NaN
+
+                        con_labels = [e.label for n in v.tot_nodes for e in n.edges if n.label == lab]           
+                        data['Connected_edge_labels'].append(con_labels)
+                        
+                        data['Residual'].append(resid_mag)
+                        data['Time'].append(int(t))
+                        data['Index_Time'].append(int(t))
+                        data['Node_Label'].append(lab)
+                        data['Index_Node_Label'].append(lab)
+                        data['Number_of_connected_edges'].append([len(n.edges) for n in v.tot_nodes if n.label == lab][0])
+                        num_of_con_edges.append([len(n.edges) for n in v.tot_nodes if n.label == lab][0])
+                        data['Length_of_connected_edges'].append(sum([e.straight_length for n in v.tot_nodes for e in n.edges if n.label == lab]))
+                        data['Mean_radius_of_connected_edges'].append(sum([e.radius for n in v.tot_nodes for e in n.edges if n.label == lab]))
+                        data['Mean_Tension'].append(np.mean([e.tension for n in v.tot_nodes for e in n.edges if n.label == lab]))
+                        tensions.append(np.mean([e.tension for n in v.tot_nodes for e in n.edges if n.label == lab]))
+                        locs.append([n.loc for n in v.tot_nodes if n.label == lab][0])
+                        if node_index == 0:
+                            data['Movement_from_prev_t'].append(0)
+                            data['Change_in_mean_tension'].append(0)
+                            data['Change_in_num_con_edges'].append(0)
+                            node_index += 1
+                        else:
+                            dist = np.linalg.norm(np.subtract(locs[node_index], locs[node_index - 1]))
+                            data['Movement_from_prev_t'].append(dist)
+                            data['Change_in_mean_tension'].append(tensions[node_index] - tensions[node_index - 1])
+                            data['Change_in_num_con_edges'].append(abs(num_of_con_edges[node_index] - num_of_con_edges[node_index - 1]))
+                            node_index += 1
+
+                        nodes_dataframe = pd.DataFrame(data)
+                        nodes_dataframe.set_index(['Index_Node_Label','Index_Time'], inplace = True)
+
+
+        if counter == None:
+            counter = 1
+            #counter = 30
+        new_colony_range = dict((k, v) for k, v in colonies.items() if int(k) > counter)
+        #new_colony_range = dict((k, v) for k, v in colonies.items() if int(k) < counter)
+        if new_colony_range != {}:
+            old_labels = labels
+            counter = counter + 1
+            #counter = counter - 1
+            self.seaborn_nodes_dataframe(new_colony_range, data,  old_labels,  counter)
+            nodes_dataframe = pd.DataFrame(data)
+            nodes_dataframe.set_index(['Index_Node_Label','Index_Time'], inplace = True)
+            return nodes_dataframe
+
+
+
+    def seaborn_plot(self, ax, colonies, common_edge_labels, common_cell_labels, data = None, cell_data = None, old_labels = None, old_cell_labels = None, counter = None, min_ten = None, max_ten = None, min_pres = None, max_pres = None):
 
         #labels = self.get_repeat_edge(colonies)
+
+
         if min_ten == None and max_ten == None and min_pres == None and max_pres == None:
             all_tensions, all_radii, all_pressures = self.all_tensions_and_radius_and_pressures(colonies)      
             _, max_pres, min_pres = self.get_min_max_by_outliers_iqr(all_pressures, type = 'pressure')
@@ -3905,13 +4582,13 @@ class manual_tracing_multiple:
         cell_labels = [c.label for c in colonies[str(initial_index)].cells if c.label != []]
 
         if data is None:
-            data = {'Index_Edge_Labels': [], 'Index_Time':[], 'Edge_Labels': [], 'Normalized_Tensions': [], 'Tensions': [], 'Change_in_tension': [], 'Time': [], 'Radius': [], 'Straight_Length': [], 'Total_connected_edge_length':[], 'Change_in_length': [], 'Change_in_connected_edge_length': [],'Binary_length_change': [] , 'Binary_connected_length_change':[]}
+            data = {'Index_Edge_Labels': [], 'Index_Time':[], 'Edge_Labels': [], 'Strain_rate': [],'Normalized_Tensions': [],'Local_normalized_tensions': [], 'Deviation': [], 'Tensions': [], 'Repeat_Tensions': [], 'Change_in_tension': [], 'Time': [], 'Curvature': [], 'Radius': [], 'Straight_Length': [], 'Total_connected_edge_length':[], 'Change_in_length': [], 'Change_in_connected_edge_length': [],'Binary_length_change': [] , 'Binary_connected_length_change':[]}
             edges_dataframe = pd.DataFrame(data)
             edges_dataframe.set_index(['Index_Edge_Labels','Index_Time'])
             #edges_dataframe.set_index(['Index_Edge_Labels', 'Index_Time'], inplace = True)
 
         if cell_data is None:
-            cell_data = {'Index_Cell_Labels': [], 'Index_Cell_Time':[], 'Cell_Labels': [], 'Normalized_Pressures': [], 'Pressures': [], 'Change_in_pressure':[] , 'Cell_Time': [], 'Area': [], 'Perimeter': [], 'Change_in_area': [], 'Binary_area_change': [], 'Change_in_perimeter': [], 'Binary_perim_change': []}
+            cell_data = {'Index_Cell_Labels': [], 'Index_Cell_Time':[], 'Cell_Labels': [], 'Centroid_movement': [], 'Rotation': [], 'Binary_rotation': [],  'Number_of_edges': [],  'Normalized_Pressures': [], 'Pressures': [], 'Mean_node_edge_tension': [], 'Sum_edge_tension': [], 'Repeat_Pressures': [], 'Change_in_pressure':[] , 'Cell_Time': [], 'Area': [], 'Perimeter': [], 'Change_in_area': [], 'Binary_area_change': [], 'Change_in_perimeter': [], 'Binary_perim_change': []}
             cells_dataframe = pd.DataFrame(cell_data)
             cells_dataframe.set_index(['Index_Cell_Labels', 'Index_Cell_Time'], inplace = True)
 
@@ -3921,30 +4598,41 @@ class manual_tracing_multiple:
                 edge_index = 0
                 lengths, con_lengths, tensions = [], [], []
                 for t, v in colonies.items():
+                    mean_tens = np.mean([e.tension for e in v.tot_edges])
                     if [e.tension for e in v.tot_edges if e.label == lab] != []:
                         data['Edge_Labels'].append(lab)
                         data['Index_Edge_Labels'].append(lab)
                         data['Tensions'].append([e.tension for e in v.tot_edges if e.label == lab][0])
                         data['Normalized_Tensions'].append(([e.tension for e in v.tot_edges if e.label == lab][0] - min_ten)/float(max_ten - min_ten))
+                        if lab in common_edge_labels:
+                            data['Repeat_Tensions'].append([e.tension for e in v.tot_edges if e.label == lab][0])
+                        else:
+                            data['Repeat_Tensions'].append(np.NaN)
+
+                        data['Local_normalized_tensions'].append([e.tension for e in v.tot_edges if e.label == lab][0]/mean_tens)
 
                         current_edge = [e for e in v.tot_edges if e.label == lab][0]
                         con_edges = [e for n in current_edge.nodes for e in n.edges if e != current_edge]
                         con_lengths.append(sum([e.straight_length for e in con_edges]))
+                        data['Deviation'].append([e.tension for e in v.tot_edges if e.label == lab][0] - np.mean(np.array([e.tension for e in v.tot_edges ])))
                         data['Total_connected_edge_length'].append(sum([e.straight_length for e in con_edges]))
                         data['Time'].append(int(t))
                         data['Index_Time'].append(int(t))
                         data['Radius'].append([e.radius for e in v.tot_edges if e.label == lab][0])
+                        data['Curvature'].append([1/e.radius for e in v.tot_edges if e.label == lab][0])
                         [tensions.append([e.tension for e in v.tot_edges if e.label == lab][0])]
                         [lengths.append([e.straight_length for e in v.tot_edges if e.label == lab][0])]
                         data['Straight_Length'].append([e.straight_length for e in v.tot_edges if e.label == lab][0])
                         if edge_index == 0:
                             data['Change_in_length'].append(0)
                             data['Change_in_tension'].append(0)
+                            data['Strain_rate'].append(0)
                             data['Change_in_connected_edge_length'].append(0)
                             data['Binary_length_change'].append('Initial Length')
                             data['Binary_connected_length_change'].append('Initial Connected Edge Length')
                             edge_index += 1
                         else:
+                            data['Strain_rate'].append((lengths[edge_index] - lengths[edge_index - 1])/lengths[edge_index - 1])
                             data['Change_in_length'].append(lengths[edge_index] - lengths[edge_index - 1])
                             data['Change_in_tension'].append(tensions[edge_index] - tensions[edge_index - 1])
                             data['Change_in_connected_edge_length'].append(con_lengths[edge_index] - con_lengths[edge_index - 1])
@@ -3963,16 +4651,27 @@ class manual_tracing_multiple:
         for cell_lab in cell_labels:
             if old_cell_labels == None or cell_lab not in old_cell_labels:
                 cell_index = 0
-                areas, perims, pressures = [], [], []
+                areas, perims, pressures, centroids = [], [], [], []
                 for t, v in colonies.items():
                     if [c.pressure for c in v.cells if c.label == cell_lab] != []:
                         cell_data['Cell_Labels'].append(cell_lab)
                         cell_data['Index_Cell_Labels'].append(cell_lab)
                         cell_data['Pressures'].append([c.pressure for c in v.cells if c.label == cell_lab][0])
                         cell_data['Normalized_Pressures'].append(([c.pressure for c in v.cells if c.label == cell_lab][0] - min_pres)/float(max_pres - min_pres))
+                        if cell_lab in common_cell_labels:
+                            cell_data['Repeat_Pressures'].append([c.pressure for c in v.cells if c.label == cell_lab][0])
+                        else:
+                            cell_data['Repeat_Pressures'].append(np.NaN)
                         cell_data['Cell_Time'].append(int(t))
                         cell_data['Index_Cell_Time'].append(int(t))
+                        temp_node_tensions = [e.tension for c in v.cells for n in c.nodes for e in n.edges if c.label == cell_lab]
+                        temp_edge_tensions = [e.tension for c in v.cells for e in c.edges if c.label == cell_lab]
+                        cell_data['Number_of_edges'].append([len(c.edges) for c in v.cells if c.label == cell_lab][0])
+
+                        cell_data['Mean_node_edge_tension'].append(np.mean(temp_node_tensions))
+                        cell_data['Sum_edge_tension'].append(np.sum(temp_edge_tensions))
                         [areas.append([c.area() for c in v.cells if c.label == cell_lab][0])]
+                        [centroids.append([c.centroid() for c in v.cells if c.label == cell_lab][0])]
                         [pressures.append([c.pressure for c in v.cells if c.label == cell_lab][0])]
                         [perims.append([c.perimeter() for c in v.cells if c.label == cell_lab][0])]
                         if cell_index == 0:
@@ -3981,8 +4680,21 @@ class manual_tracing_multiple:
                             cell_data['Binary_area_change'].append('Initial Area')
                             cell_data['Change_in_perimeter'].append(0)
                             cell_data['Binary_perim_change'].append('Initial Perimeter')
+                            cell_data['Centroid_movement'].append(0)
+                            cell_data['Binary_rotation'].append(0)
+                            cell_data['Rotation'].append(0)
                             cell_index += 1
-                        else:
+                        else: 
+                            x1, y1 = centroids[cell_index - 1][0], centroids[cell_index -1][1]
+                            x2, y2 = centroids[cell_index][0], centroids[cell_index][1]
+                            cosang = np.dot([x1, y1], [x2, y2])
+
+                            sinang = np.cross([x1, y1], [x2, y2])
+                            
+                            # theta1 = np.rad2deg(np.arctan2(y2-y1, x2-x1)) 
+                            theta1 = np.rad2deg(np.arctan2(sinang, cosang))
+                            cell_data['Rotation'].append(theta1)
+                            cell_data['Centroid_movement'].append(np.linalg.norm(np.subtract(centroids[cell_index], centroids[cell_index - 1])))
                             cell_data['Change_in_area'].append(areas[cell_index] - areas[cell_index - 1])
                             cell_data['Change_in_perimeter'].append(perims[cell_index] - perims[cell_index - 1])
                             cell_data['Change_in_pressure'].append(pressures[cell_index] - pressures[cell_index - 1])
@@ -3995,6 +4707,11 @@ class manual_tracing_multiple:
                                 cell_data['Binary_perim_change'].append('Increasing Perimeter')
                             else:
                                 cell_data['Binary_perim_change'].append('Decreasing Perimeter')
+
+                            if theta1 > 0:
+                                cell_data['Binary_rotation'].append(1)
+                            else:
+                                cell_data['Binary_rotation'].append(-1)
                             cell_index += 1
 
                         cell_data['Area'].append([c.area() for c in v.cells if c.label == cell_lab][0])
@@ -4008,7 +4725,7 @@ class manual_tracing_multiple:
         if new_colony_range != {}:
             old_labels = labels
             old_cell_labels = cell_labels
-            self.seaborn_plot(ax,  new_colony_range, data, cell_data, old_labels, old_cell_labels,  counter + 1, min_ten, max_ten, min_pres, max_pres)
+            self.seaborn_plot(ax,  new_colony_range, common_edge_labels, common_cell_labels,  data, cell_data, old_labels, old_cell_labels,  counter + 1, min_ten, max_ten, min_pres, max_pres)
             edges_dataframe = pd.DataFrame(data)
             edges_dataframe.set_index(['Index_Edge_Labels', 'Index_Time'], inplace = True)
             cells_dataframe = pd.DataFrame(cell_data)
