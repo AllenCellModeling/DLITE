@@ -1220,6 +1220,8 @@ class colony:
                     
                     print('Trying L-BFGS')
 
+                    print('Which cell removed')
+
                     # Correct BLOCK
 
                     # #Run basin hopping
@@ -3647,6 +3649,185 @@ class manual_tracing_multiple:
         plt.clf()
         plt.close()
 
+
+    def plot_compare_single_edge_tension(self, fig, ax, ax1, colonies_1, colonies_2, node_label, edge_label):
+
+        all_tensions_1, _, _ = self.all_tensions_and_radius_and_pressures(colonies_1)
+        _, max_ten_1, min_ten_1 = self.get_min_max_by_outliers_iqr(all_tensions_1)
+
+        all_tensions_2, _, _ = self.all_tensions_and_radius_and_pressures(colonies_2)
+        _, max_ten_2, min_ten_2 = self.get_min_max_by_outliers_iqr(all_tensions_2)
+
+
+        # ax.set(xlim = [0,1030], ylim = [0,1030], aspect = 1)
+
+        frames = [i for i in colonies_1.keys()]
+        # ax1.set(xlim = [frames[0], frames[-1]], ylim = [0, 0.004])
+
+        tensions_1, tensions_2 = [], []
+
+
+        for j, i in enumerate(frames):
+            try:
+                # for node edge plotting
+                #edd = dictionary[node_label][0][edge_label]
+                # for edge plotting based on edge label
+                mean_t = np.mean([e.tension for e in colonies_1[str(i)].tot_edges])
+                print(mean_t)
+                edd = [e for e in colonies_1[str(i)].tot_edges if e.label == edge_label][0]
+                tensions_1.append(edd.tension/ mean_t)                 
+            except:
+                frames = frames[0:j]
+
+        for j, i in enumerate(frames):
+            try:
+                # for node edge plotting
+                #edd = dictionary[node_label][0][edge_label]
+                # for edge plotting based on edge label
+                mean_t = np.mean([e.tension for e in colonies_2[str(i)].tot_edges])
+                print(mean_t)
+                edd = [e for e in colonies_2[str(i)].tot_edges if e.label == edge_label][0]
+                tensions_2.append(edd.tension/ mean_t)                 
+            except:
+                frames = frames[0:j]
+
+        ax1.plot(frames, tensions_1, lw = 3, color = 'black')
+        ax1.set_ylabel('Tension_CELLFIT', color='black')
+        ax1.set_xlabel('Frames')
+        ax2 = ax1.twinx()
+        ax2.plot(frames, tensions_2, 'blue')
+        ax2.set_ylabel('Tension_Unconstrained', color='blue')
+        ax2.tick_params('y', colors='blue')
+
+
+        for j, i in enumerate(frames):
+            edges_1 = colonies_1[str(i)].tot_edges
+            nodes_1 = colonies_1[str(i)].tot_nodes
+
+            ax.set(xlim = [0,1030], ylim = [0,1030], aspect = 1)
+          #  ax1.set(xlim = [0,31], ylim = [0,0.004])
+            ax1.set(xlim = [0,31], ylim = [0, 2.2])
+            ax2.set(xlim = [0,31], ylim = [0, 2.2])
+
+            ax1.xaxis.set_major_locator(plt.MaxNLocator(12))
+
+
+            [e.plot(ax) for e in edges_1]
+ #           [n.plot(ax, markersize = 10) for n in nodes if n.label == node_label]
+
+            #current_edge = dictionary[node_label][0][edge_label]
+            current_edge = [e for e in colonies_1[str(i)].tot_edges if e.label == edge_label][0]
+            [current_edge.plot(ax, lw=3, color = 'red')]
+
+            fname = '_tmp%05d.png'%int(j)   
+            mean_t_1 = np.mean([e.tension for e in colonies_1[str(i)].tot_edges])
+            ax1.plot(i, current_edge.tension/mean_t_1, 'ok', color = 'red')
+
+            
+            current_new_edge = [e for e in colonies_2[str(i)].tot_edges if e.label == edge_label][0]
+            mean_t_2 = np.mean([e.tension for e in colonies_2[str(i)].tot_edges])
+            ax2.plot(i, current_new_edge.tension/mean_t_2, 'ok', color = 'red')
+
+            plt.tight_layout()
+
+            plt.savefig(fname)
+            plt.clf() 
+            plt.cla() 
+            plt.close()
+            fig, (ax, ax1)= plt.subplots(2,1, figsize = (5.5,10))  # figsize (14,6) before
+            # ax.set(xlim = [0,1030], ylim = [0,1030], aspect = 1)
+            # ax1.set(xlim = [frames[0], frames[-1]], ylim = [0, 0.004])
+            ax1.plot(frames, tensions_1, lw = 3, color = 'black')
+            ax1.set_ylabel('Tension_CELLFIT', color='black')
+            ax1.set_xlabel('Frames')
+            ax2 = ax1.twinx()
+            ax2.plot(frames, tensions_2, 'blue')
+            ax2.set_ylabel('Tension_Unconstrained', color='blue')
+            ax2.tick_params('y', colors='blue')
+
+        fps = 5
+        os.system("rm movie_compare_edge.mp4")
+        os.system("ffmpeg -r "+str(fps)+" -b 1800 -i _tmp%05d.png movie_compare_edge.mp4")
+        os.system("rm _tmp*.png")
+
+        plt.cla()
+        plt.clf()
+        plt.close()
+
+    def plot_abnormal_edges(self, fig, ax, colonies_1, abnormal):
+        # abnormal is of the form [[label, time]]
+
+
+        frames = [i for i in colonies_1.keys()]
+
+        # abnormal = sorted(abnormal, key = lambda x: x[1])
+        # ax1.set(xlim = [frames[0], frames[-1]], ylim = [0, 0.004])
+
+
+        temp_mean , temp_std = [], []
+
+        for j, i in enumerate(frames):
+            temp_mean.append(np.mean([e.tension for e in colonies_1[str(i)].tot_edges]))
+            temp_std.append(np.std([e.tension for e in colonies_1[str(i)].tot_edges]))
+
+        mean_t = np.mean(temp_mean)
+        std_t = np.std(temp_mean)
+
+
+
+        for j, i in enumerate(frames):
+            edges_1 = colonies_1[str(i)].tot_edges
+            nodes_1 = colonies_1[str(i)].tot_nodes
+
+            # ax.set(xlim = [0,580], ylim = [0,580], aspect = 1)
+            ax.set(xlim = [0,1030], ylim = [0,1030], aspect = 1)
+
+            [e.plot(ax) for e in edges_1]
+ #           [n.plot(ax, markersize = 10) for n in nodes if n.label == node_label]
+
+            #current_edge = dictionary[node_label][0][edge_label]
+
+
+            times = [a[1] for a in abnormal]
+
+            print(i, times)
+            print('all', [a for a in abnormal])
+            print('all_1', [a[0] for a in abnormal])
+            print('all_2', [a[1] for a in abnormal])
+            print('a', [a for a in abnormal if a[1] == int(i)])
+            print('labels', [a[0] for a in abnormal if a[1] == int(i)])
+            
+            
+            if int(i) in times:
+                print('ok')
+                labels = [a[0] for a in abnormal if a[1] == int(i)]
+                print(i)
+                print(labels)
+                for labe in labels:
+                    print(i, labe)
+                    [e.plot(ax, lw=3, color = 'red') for e in edges_1 if e.label == labe]
+
+            fname = '_tmp%05d.png'%int(j)   
+
+            plt.tight_layout()
+
+            plt.savefig(fname)
+            plt.clf() 
+            plt.cla() 
+            plt.close()
+            fig, ax = plt.subplots(1,1, figsize = (5.5,5.5))  # figsize (14,6) before
+
+        fps = 5
+        os.system("rm movie_abnormal_edge.mp4")
+        os.system("ffmpeg -r "+str(fps)+" -b 1800 -i _tmp%05d.png movie_abnormal_edge.mp4")
+        os.system("rm _tmp*.png")
+
+        plt.cla()
+        plt.clf()
+        plt.close()
+
+
+
     def plot_guess_tension(self, fig, ax, ax1, colonies, node_label, edge_label):
         frames = [i for i in colonies.keys()]
 
@@ -4321,7 +4502,7 @@ class manual_tracing_multiple:
                 circle1 = plt.Circle((0, 0), radius, fill = False)
                 ax.add_artist(circle1)
                 ax.set_aspect(1)
-                ax.set(xlim = [-0.06, 0.06], ylim = [-0.06, 0.06])
+                ax.set(xlim = [-0.2, 0.2], ylim = [-0.2, 0.2])
 
                 #tensor = tensor_dataframe.Rotation[int(t)]
                 tensor = tensor_dataframe.Strain_rate[int(t)]
@@ -4424,7 +4605,7 @@ class manual_tracing_multiple:
                 fig, ax = plt.subplots(1,1, figsize = (8,5)) 
                 count += 1
 
-        fps = 1
+        fps = 5
         os.system("rm movie_strain_rate.mp4")
         os.system("ffmpeg -r "+str(fps)+" -b 1800 -i _tmp%05d.png movie_strain_rate.mp4")
         os.system("rm _tmp*.png")
@@ -4582,7 +4763,7 @@ class manual_tracing_multiple:
         cell_labels = [c.label for c in colonies[str(initial_index)].cells if c.label != []]
 
         if data is None:
-            data = {'Index_Edge_Labels': [], 'Index_Time':[], 'Edge_Labels': [], 'Strain_rate': [],'Normalized_Tensions': [],'Local_normalized_tensions': [], 'Deviation': [], 'Tensions': [], 'Repeat_Tensions': [], 'Change_in_tension': [], 'Time': [], 'Curvature': [], 'Radius': [], 'Straight_Length': [], 'Total_connected_edge_length':[], 'Change_in_length': [], 'Change_in_connected_edge_length': [],'Binary_length_change': [] , 'Binary_connected_length_change':[]}
+            data = {'Index_Edge_Labels': [], 'Index_Time':[], 'Edge_Labels': [], 'Strain_rate': [],'Normalized_Tensions': [],'Stochasticity_in_tension': [], 'Local_normalized_tensions': [], 'Deviation': [], 'Tensions': [], 'Repeat_Tensions': [], 'Change_in_tension': [], 'Time': [], 'Curvature': [], 'Radius': [], 'Straight_Length': [], 'Total_connected_edge_length':[], 'Change_in_length': [], 'Change_in_connected_edge_length': [],'Binary_length_change': [] , 'Binary_connected_length_change':[]}
             edges_dataframe = pd.DataFrame(data)
             edges_dataframe.set_index(['Index_Edge_Labels','Index_Time'])
             #edges_dataframe.set_index(['Index_Edge_Labels', 'Index_Time'], inplace = True)
@@ -4596,7 +4777,7 @@ class manual_tracing_multiple:
         for lab in labels:
             if old_labels == None or lab not in old_labels:
                 edge_index = 0
-                lengths, con_lengths, tensions = [], [], []
+                lengths, con_lengths, tensions, norm_tensions = [], [], [], []
                 for t, v in colonies.items():
                     mean_tens = np.mean([e.tension for e in v.tot_edges])
                     if [e.tension for e in v.tot_edges if e.label == lab] != []:
@@ -4610,7 +4791,7 @@ class manual_tracing_multiple:
                             data['Repeat_Tensions'].append(np.NaN)
 
                         data['Local_normalized_tensions'].append([e.tension for e in v.tot_edges if e.label == lab][0]/mean_tens)
-
+                        [norm_tensions.append([e.tension for e in v.tot_edges if e.label == lab][0]/mean_tens)]
                         current_edge = [e for e in v.tot_edges if e.label == lab][0]
                         con_edges = [e for n in current_edge.nodes for e in n.edges if e != current_edge]
                         con_lengths.append(sum([e.straight_length for e in con_edges]))
@@ -4626,6 +4807,7 @@ class manual_tracing_multiple:
                         if edge_index == 0:
                             data['Change_in_length'].append(0)
                             data['Change_in_tension'].append(0)
+                            data['Stochasticity_in_tension'].append(0)
                             data['Strain_rate'].append(0)
                             data['Change_in_connected_edge_length'].append(0)
                             data['Binary_length_change'].append('Initial Length')
@@ -4635,6 +4817,7 @@ class manual_tracing_multiple:
                             data['Strain_rate'].append((lengths[edge_index] - lengths[edge_index - 1])/lengths[edge_index - 1])
                             data['Change_in_length'].append(lengths[edge_index] - lengths[edge_index - 1])
                             data['Change_in_tension'].append(tensions[edge_index] - tensions[edge_index - 1])
+                            data['Stochasticity_in_tension'].append(norm_tensions[edge_index] - norm_tensions[edge_index - 1])
                             data['Change_in_connected_edge_length'].append(con_lengths[edge_index] - con_lengths[edge_index - 1])
                             if lengths[edge_index] > lengths[edge_index - 1]:
                                 data['Binary_length_change'].append('Increasing Length')
@@ -4852,7 +5035,7 @@ class manual_tracing_multiple:
             plt.close()
             fig, ax = plt.subplots(1,1, figsize = (8, 5))
 
-        fps = 1
+        fps = 5
         os.system("rm movie_ten_pres.mp4")
 
         os.system("ffmpeg -r "+str(fps)+" -b 1800 -i _tmp%05d.png movie_ten_pres.mp4")
