@@ -23,9 +23,6 @@ from scipy.optimize import differential_evolution
 import seaborn as sns
 import pandas as pd
 import random
-#from Dave_cell_find import find_all_cells, cells_on_either_side, Cycle_tracer
-# To go back to my cycle find, change 'find_all_cells' to 'cycle_finder' and also change the way the angle is calculated
-
 
 class CycleTracer:
     """Trace around a network to discover a cell cycle
@@ -130,22 +127,28 @@ class node:
 
     @property
     def x(self):
+        """x co-ordinate of node"""
         return self.loc[0]
 
     @property
     def y(self):
+        """y co-ordinate of node"""
         return self.loc[1]
     
     @property
     def edges(self):
+        """List of edges connected to this node"""
+
         return self._edges
 
     @edges.setter
     def edges(self, edge):
+        """Sets list of edges -- make sure no repeat edges"""
         if edge not in self._edges:
             self._edges.append(edge)
 
     def remove_edge(self, edge):
+        """Remove an edge connected to this node, Deletes this edge from node._edges and the tension vector from node._tension_vectors """
 
         ind = self._edges.index(edge) 
         self._edges.pop(ind)
@@ -153,15 +156,22 @@ class node:
 
     @property
     def tension_vectors(self):
+        """ Tension vectors connected to this node. Each tension vector corresponds to its respective edge in node._edges"""
         return self._tension_vectors
 
     @tension_vectors.setter
     def tension_vectors(self, vector):
+        """
+    	Setter for tension_vectors, make sure no repeat tension_vectors
+        """
         if vector not in self._tension_vectors:
             self._tension_vectors.append(vector)
 
     @property
     def horizontal_vectors(self):
+        """
+    	Not currently used in code, list of x-component of tension vectors connected to this node
+        """
         return self._horizontal_vectors
 
     @horizontal_vectors.setter
@@ -170,6 +180,9 @@ class node:
 
     @property
     def vertical_vectors(self):
+        """
+    	Not currently used in code, list of y-component of tension vectors connected to this node
+        """
         return self._vertical_vectors
 
     @vertical_vectors.setter
@@ -178,6 +191,9 @@ class node:
 
     @property
     def edge_indices(self):
+        """
+    	Indices of edges connected to this node in the list of all edges in colony - used while making tension matrix
+        """
         return self._edge_indices
 
     @edge_indices.setter
@@ -196,6 +212,9 @@ class node:
         self._label = label
 
     def plot(self, ax, **kwargs):
+        """
+    	Plot node as a point
+        """
         ax.plot(self.loc[0], self.loc[1], ".", **kwargs)
 
 class edge:
@@ -252,14 +271,23 @@ class edge:
 
     @property
     def co_ordinates(self):
+        """
+        List of co-ordinates along this edge
+        """
         return self.x_co_ords, self.y_co_ords
     
     @property
     def cells(self):
+        """
+        List of cells that this edge is a part of
+        """
         return self._cells
 
     @cells.setter
     def cells(self, cell):
+        """
+        Check no repeat cells by checking if the edges in this new cell dont match edges in a cell that already exists in the list
+        """
         check = 0
         if cell not in self._cells:
             for c in self._cells:
@@ -270,14 +298,23 @@ class edge:
 
     @property
     def cell_indices(self):
+        """
+        Make a list of cell indices from list of cells in colony - set during pressure matrix calculation
+        """
         return self._cell_indices
 
     @cell_indices.setter
     def cell_indices(self, indices):
+        """
+        Setter for cell indices
+        """
         self._cell_indices = indices
 
     @property
     def cell_coefficients(self):
+        """
+        List of cell co-efficents - not sure where i used this
+        """
         return self._cell_coefficients
 
     @cell_coefficients.setter
@@ -286,6 +323,9 @@ class edge:
 
     @property
     def cell_rhs(self):
+        """
+        RHS of pressure matrix equation, i.e tension/radius 
+        """
         return self._cell_rhs
 
     @cell_rhs.setter
@@ -316,6 +356,9 @@ class edge:
 
     @property
     def center_of_circle(self):
+        """
+        Center of circle that sets the radius of this edge
+        """
         return self._center_of_circle
 
     @center_of_circle.setter
@@ -324,6 +367,9 @@ class edge:
 
     @property
     def tension(self):
+        """
+        Tension of this edge
+        """
         return self._tension
 
     @tension.setter
@@ -382,6 +428,9 @@ class edge:
         return (xc, yc), theta1, theta2
 
     def plot(self, ax, **kwargs):
+        """
+        Plot edges using matplotlib.patches.arc, requires a circle center, radius of arc and starting and ending angle
+        """
         a, b = self.node_a, self.node_b
         if self.radius is not None:
 
@@ -400,6 +449,9 @@ class edge:
              ax.plot([a.x, b.x], [a.y, b.y])
 
     def plot_fill(self, ax, resolution = 50, **kwargs):
+        """
+        Similar to plot, only difference is arc is now filled, needed for pressure colormap diagram
+        """
         a, b = self.node_a, self.node_b
         if self.radius is not None:
             center, th1, th2 = self.arc_translation(a.loc, b.loc, self.radius)
@@ -426,6 +478,9 @@ class edge:
 
     @property
     def nodes(self):
+        """
+        Set of nodes that comprise this edge
+        """
         return set((self.node_a, self.node_b))    
 
     def edge_angle(self, other_edge):
@@ -531,93 +586,6 @@ class edge:
         else:
             print('how')
 
-        # v1 = [(x - y) for x, y in zip(midpoint, n_a)]
-        # v2 = [(x - y) for x, y in zip(actual_co_ord, n_a)]
-
-        # # # find the unit vectors associated with these edges 
-        # edge1_p_a, edge1_p_b = edge1.unit_vectors()
-        # edge2_p_a, edge2_p_b = edge2.unit_vectors()
-
-        # # choose the correct unit vector in edge1 coming into node_a
-        # if edge1.node_a == self.node_a:
-        #     edge1_v = edge1_p_a
-        # else:
-        #     edge1_v = edge1_p_b
-
-        # # choose the correct unit vector in edge2 coming into node_a
-        # if edge2.node_a == self.node_a:
-        #     edge2_v = edge2_p_a
-        # else:
-        #     edge2_v = edge2_p_b
-
-        # angle1 = py_ang(edge1_v, v1)
-        # angle2 = py_ang(edge1_v, v2)
-        # if angle1 > angle2:
-        #     return cell2
-        # elif angle2 > angle1:
-        #     return cell1
-        # else:
-        #     print(angle1, angle2, angle1 > angle2, angle2 > angle1)
-        #     print('really how')
-
-
-        # # print(len(self.x_co_ords))
-        # # #actual_co_ord = [self.x_co_ords[2], self.y_co_ords[2]]
-
-        #     distance_between_cell1_midpoint = math.sqrt( ((centroid_cell1[0]-midpoint[0])**2)+((centroid_cell1[1]-midpoint[1])**2) )
-        #     distance_between_cell2_midpoint = math.sqrt( ((centroid_cell2[0]-midpoint[0])**2)+((centroid_cell2[1]-midpoint[1])**2) )
-        #     distance_between_cell1_actual_co_ord = math.sqrt( ((centroid_cell1[0]-actual_co_ord[0])**2)+((centroid_cell1[1]-actual_co_ord[1])**2) )
-        #     distance_between_cell2_actual_co_ord = math.sqrt( ((centroid_cell2[0]-actual_co_ord[0])**2)+((centroid_cell2[1]-actual_co_ord[1])**2) )
-        #     print(distance_between_cell1_actual_co_ord, distance_between_cell1_midpoint, distance_between_cell2_actual_co_ord, distance_between_cell2_midpoint)
-        #     if distance_between_cell1_actual_co_ord > distance_between_cell1_midpoint and distance_between_cell2_actual_co_ord < distance_between_cell2_midpoint:
-        #         return cell1
-        #     if distance_between_cell1_actual_co_ord < distance_between_cell1_midpoint and distance_between_cell2_actual_co_ord > distance_between_cell2_midpoint:
-        #         return cell2
-        #     else:
-        #         print('how')
-
-        # OLD METHOD
-
-        # angle1 = self.edge_angle(edge1)
-        # angle2 = self.edge_angle(edge2)
-
-        # ODLER METHOD
-
-        # # find the unit vectors associated with these edges 
-        # edge1_p_a, edge1_p_b = edge1.unit_vectors()
-        # edge2_p_a, edge2_p_b = edge2.unit_vectors()
-
-        # # choose the correct unit vector in edge1 coming into node_a
-        # if edge1.node_a == self.node_a:
-        #     edge1_v = edge1_p_a
-        # else:
-        #     edge1_v = edge1_p_b
-
-        # # choose the correct unit vector in edge2 coming into node_a
-        # if edge2.node_a == self.node_a:
-        #     edge2_v = edge2_p_a
-        # else:
-        #     edge2_v = edge2_p_b
-
-        # Now we have 3 vectors - perp_a, edge1_v and edge2_v on 3 edges all coming into node_a 
-        # to check convexivity, we get the angles between edge1_v and perp_a and between edge2_v and perp_a
-
-        # cosang = np.dot(perp_a, edge1_v)
-        # sinang = np.cross(perp_a, edge1_v)
-        # angle1 = np.rad2deg(np.arctan2(sinang, cosang)) 
-
-        # cosang = np.dot(perp_a, edge2_v)
-        # sinang = np.cross(perp_a, edge2_v)
-        # angle2 = np.rad2deg(np.arctan2(sinang, cosang))
-
-
-
-        # the one with the larger angle difference should be the more convex cell
-
-        # if abs(angle1) > abs(angle2):
-        #     return cell1
-        # else:
-        #     return cell2 
 
     def which_cell(self, list_of_edges, ty, max_iter):
         """
@@ -682,8 +650,6 @@ class edge:
                 cells = cell(list(self.nodes),[edge, edge1])
 
         return cells
-
-
 
 
     def recursive_cycle_finder(self, edge1, edge2, ty, cell_nodes, cell_edges, p, max_iter):
@@ -830,6 +796,9 @@ class cell:
 
     @property
     def colony_cell(self):
+        """
+        The colony that this cell is a part of (only one colony, this is not really useful)
+        """
         return self._colony_cell
 
     @colony_cell.setter
@@ -838,14 +807,23 @@ class cell:
             self._colony_cell.append(colony)
 
     def perimeter(self):
+        """
+        Perimeter of this cell (calculated as sum of straight lengths of every edge, need to add curvature of this edge)
+        """
         return sum([e.straight_length for e in self.edges ])  
 
     def centroid(self):
+        """
+        Centroid of this cell, calculated as a mean of co-ordinates of all nodes that make up this cell
+        """
         x = [n.loc[0] for n in self.nodes]
         y = [n.loc[1] for n in self.nodes]
         return (np.mean(x), np.mean(y))
 
     def area(self):
+        """
+        Calculate area of this cell, got this online
+        """
         vertices = [n.loc for n in self.nodes]
         n = len(vertices) # of corners
         a = 0.0
@@ -857,6 +835,9 @@ class cell:
     
     @property
     def pressure(self):
+        """
+        Pressure of this cell
+        """
         return self._pressure
 
     @pressure.setter
@@ -865,6 +846,9 @@ class cell:
 
     @property
     def label(self):
+        """
+        Assign a label to this cell to track it over time
+        """
         return self._label
     
     @label.setter
@@ -873,6 +857,9 @@ class cell:
 
     @property
     def guess_pressure(self):
+        """
+        Guess pressure used as an initial condition during optimization
+        """
         return self._guess_pressure
 
     @guess_pressure.setter
@@ -912,10 +899,16 @@ class colony:
         [e.plot(ax) for e in self.cells]
 
     def add_cell(self, cell):
+        """
+        Add a cell to the colony, dont really use this anywhere
+        """
         self.cells.append(cell)
 
     @property
     def tension_matrix(self):
+        """
+        Store the calculated tension matrix as a property
+        """
         return self._tension_matrix
 
     @tension_matrix.setter
@@ -924,6 +917,9 @@ class colony:
 
     @property
     def pressure_matrix(self):
+        """
+        Store the calculated pressure matrix as a property
+        """
         return self._pressure_matrix
 
     @pressure_matrix.setter
@@ -932,6 +928,9 @@ class colony:
 
     @property
     def pressure_rhs(self):
+        """
+        Save the RHS of pressure equation as a property
+        """
         return self._pressure_rhs
 
     @pressure_rhs.setter
@@ -1139,8 +1138,6 @@ class colony:
 
         # Use Solve_constrained_lsq
 
-
-
         # New scipy minimze solver
         if nodes == None:
             nodes = self.tot_nodes
@@ -1150,9 +1147,7 @@ class colony:
 
         ## MAIN SOLVER
         # Used in cellfit paper
-
-        
-        
+       
         if solver == 'KKT':
             A = self.make_tension_matrix(nodes, edges)
             tensions, P = self.solve_constrained_lsq(A, 0, None)
@@ -1444,6 +1439,9 @@ class colony:
         return I
 
     def get_adjacent_pressures(self, e_or_c):
+        """
+        Get a list of adjacent pressures of adjacent tensions if there is no initial guess for this edge tension or cell pressure
+        """
         adj_press = []
         for ee in e_or_c.edges:
             adj_cell = [c for c in ee.cells if c != e_or_c]
@@ -1756,104 +1754,6 @@ class colony:
         self.pressure_matrix = A
         self.pressure_rhs = rhs
 
-
-
-        #OLD WAY
-
-        # #rhs = np.zeros((len(edges), 1))
-        # for c in self.cells:
-
-
-        #     # find cells with a common edge to c
-        #     common_edge_cells = [cell for cell in self.cells if set(c.edges).intersection(set(cell.edges)) != set() if cell != c]
-
-
-        #     # If there are two cells that share an edge, can calculate pressure difference across it
-        #     for cell in common_edge_cells:
-        #         # find common edges between cell and c
-        #         c_edges = [e for e in set(cell.edges).intersection(set(c.edges))]
-        #         indices = []
-        #         indices.append(self.cells.index(c))
-        #         indices.append(self.cells.index(cell))
-
-
-
-
-        #         for e in c_edges:
-
-        #             if e not in list_of_edges:
-
-        #                 e.cell_indices = indices
-
-
-        #                 temp = np.zeros((len(self.cells),1))
-        #                 # we are finding the pressure difference between 2 cells - (cell, c)
-        #                 values = np.array([1,-1])
-        #                 for j, i in enumerate(indices):
-        #                     # here we assign +1 to cell (c) and -1 to cell (cell)
-        #                     temp[i] = values[j]
-
-        #                 e.cell_coefficients = values
-
-        #                 A = np.append(A, temp, axis=1)
-
-        #                 convex_cell = e.convex_concave(c, cell)
-
-        #                 if convex_cell == c:
-        #                     if e.radius is not None:
-        #                         if e.tension is not []:
-        #                             #rhs.append(np.negative(e.tension/ e.radius))
-        #                             rhs.append(e.tension/ e.radius)
-        #                             e.cell_rhs = e.tension/e.radius
-        #                     else: 
-        #                         rhs.append(0)
-        #                         e.cell_rhs = 0
-
-        #                 elif convex_cell == cell:
-        #                     if e.radius is not None:
-        #                         #rhs.append(e.tension/ e.radius)
-        #                         rhs.append(np.negative(e.tension/ e.radius))
-        #                         e.cell_rhs = np.negative(e.tension/ e.radius)
-        #                     else:
-        #                         rhs.append(0)
-        #                         e.cell_rhs = 0
-        #                 else:
-        #                     if e.radius is not None:
-        #                         if e.tension is not []:
-        #                             #rhs.append(np.negative(e.tension/ e.radius))
-        #                             rhs.append(e.tension/ e.radius)
-        #                             e.cell_rhs = e.tension/ e.radius
-        #                     else: 
-        #                         rhs.append(0)
-        #                         e.cell_rhs = 0
-
-        #                 list_of_edges.append(e)
-
-                    
-        # A = A.T
-        # A = np.delete(A, (0), axis=0)
-        # rhs = np.array(rhs)
-
-        # self.pressure_matrix = A
-        # self.pressure_rhs = rhs
-
-        # Check for all zero columns. If any column is all zero, that means the cell doesnt share a common edge with any other cell
-        # def delete_column(A, index):
-        #     A = np.delete(A, np.s_[index], axis=1)
-        #     new_index = np.where(~A.any(axis=0))[0]
-
-        #     if len(new_index) > 0:
-        #         A = delete_column(A, new_index[0])
-        #     return A
-
-        # # Save indicies of cells that we cant calculate pressure for (that cell doesnt have a common edge with any other cell)
-        # zero_column_index = np.sort(np.where(~A.any(axis=0))[0])
-
-        # if len(zero_column_index) > 0:
-        #     for i in zero_column_index:
-        #         self.cells[i].pressure = None
-        #     A = delete_column(A, zero_column_index[0])
-
         return A, rhs
 
 
@@ -2037,6 +1937,8 @@ class colony:
 class data:
     def __init__(self, V, t):
         """
+        Data class made specifically for the pickle file format that Jianxu made
+        I use a lot of the methods in this class in the next manual tracing classes
         Parameters
         ---------
         V is data structure obtained after loading the pickle file
@@ -2381,6 +2283,9 @@ class data:
         return nodes, edges
 
     def remove_small_cells(self, nodes, edges):
+        """
+        Clean up small cells that have a small perimeter
+        """
         # Get unique cells
         #cells = self.find_all_cells(edges)
         cells = self.find_cycles(edges)
@@ -2445,7 +2350,8 @@ class data:
         return nodes, edges, new_edges
 
     def find_all_cells(self, edges):
-        """Find all the cells in a list of edges
+        """ Dave's cell finding
+        Find all the cells in a list of edges
         Parameters
         ----------
             edges: list of edges
@@ -2463,7 +2369,8 @@ class data:
         return cells
 
     def cells_on_either_side(self, edge):
-        """Find the cells on either side of this edge, if they exist
+        """Dave's cell finding
+        Find the cells on either side of this edge, if they exist
         What we have to work with are the connected edges on each side 
         of the starting edge and the edge angles they make
         Parameters
@@ -2482,6 +2389,11 @@ class data:
 
     @staticmethod
     def find_cycles(edges):
+        """
+        My cell finding, main function call. 
+        Takes a list of edges and for every edge, gives a maximum of 2 cells that its connected to
+        This method calls which_cell which in turn calls the recursive_cycle_finder
+        """
 
         # Set max iterations for cycle finding
         max_iter = 300
@@ -2598,6 +2510,7 @@ class data:
 class manual_tracing(data):
     def __init__(self, X, Y):
         """
+        Class for a single frame of manual tracing that has been traced out using NeuronJ
         Manual tracing that outputs an array of X and Y co-ordinates
         length(X) == number of edges 
         length(X[0]) == X co-ordinates on edge 0
@@ -2697,10 +2610,22 @@ class manual_tracing(data):
 
 class synthetic_data(data):
     def __init__(self, nodes, edges):
+        """
+        Class for single frame of CELLFIT synthetic data
+        Has only one method - compute, returns a colony with calculated tensions and pressures
+        Parameters
+        --------------
+        Nodes of this synthetic data set
+        Edges of this synthetic data set
+
+        """
         self.nodes = nodes
         self.edges = edges
 
     def compute(self, solver = None, **kwargs):
+        """
+        Computes tensions and pressures and return a colony class
+        """
 
         cells = self.find_cycles(self.edges)
 
@@ -2796,6 +2721,7 @@ class manual_tracing_multiple:
         """
         Get nodes, edges and cells at time point number
         these nodes, edges and cells do not have any labels
+        CHECK - cutoff values used, need to go to every frame and check to see if cutoff works or not
         """
 
         X, Y = self.get_X_Y_data(number)
@@ -3325,6 +3251,7 @@ class manual_tracing_multiple:
 
     def plot_single_nodes(self, fig, ax, label, colonies, max_num):
         """
+        PLOTTING FUNCTION
         Plot the edges connected to a node specified by label
         Parameters
         ---------------
@@ -3391,7 +3318,8 @@ class manual_tracing_multiple:
 
     def plot_tensions(self, fig, ax, colonies, specify_aspect = None, specify_color = None, **kwargs):
         """
-        Make a tension movie over the colonies
+        PLOTTONG FUNCTION
+        Make a tension movie (colormap) for all timepoints of the colony
         """
         max_num = len(colonies)
 
@@ -3429,6 +3357,11 @@ class manual_tracing_multiple:
         plt.close()
 
     def plot_single_cells(self, fig, ax, ax1, ax3, colonies, cell_label):
+        """
+        Make a movie tracking showing the evolution of a single cell over time, specified by cell_label
+        Also plots
+        Pressure, Perimeter, Area and Change in area of that cell over time
+        """
         all_tensions, all_radii, all_pressures = self.all_tensions_and_radius_and_pressures(colonies) 
         all_lengths, all_perims, all_areas = self.all_perims_areas_lengths(colonies)       
         _, max_pres, min_pres = self.get_min_max_by_outliers_iqr(all_pressures, type = 'pressure')
@@ -3536,6 +3469,9 @@ class manual_tracing_multiple:
         plt.close()
 
     def single_edge_plotting(self, fig, ax, ax1, ax3, colonies, node_label, edge_label):
+        """
+        This is a function that is called by plot_single_edges (the next function)
+        """
         all_tensions, all_radii, all_pressures = self.all_tensions_and_radius_and_pressures(colonies)
         all_lengths, all_perims, all_areas = self.all_perims_areas_lengths(colonies)   
         _, max_ten, min_ten = self.get_min_max_by_outliers_iqr(all_tensions)
@@ -3637,6 +3573,11 @@ class manual_tracing_multiple:
 
 
     def plot_single_edges(self, fig, ax, ax1, ax3, colonies, node_label, edge_label):
+        """
+        Plots a single edge over time specified by edge_label (dont really use node_label, used it before when i wasnt tracking edge labels explicitly)
+        Also plots
+        tension, straight_length, radius and change in straight_length of that edge
+        """
 
         self.single_edge_plotting(fig, ax, ax1, ax3, colonies, node_label, edge_label)
 
@@ -3651,6 +3592,13 @@ class manual_tracing_multiple:
 
 
     def plot_compare_single_edge_tension(self, fig, ax, ax1, colonies_1, colonies_2, node_label, edge_label):
+        """
+        Plot single edge over time specified by edge label (dont really use node_label)
+        Also plots 
+        Tension of that edge store2 in colonies_1
+        Tension of that edge stored in colonies_2
+        Meant to be used as a comparison of 2 methods - CELLFIT, unconstrained
+        """
 
         all_tensions_1, _, _ = self.all_tensions_and_radius_and_pressures(colonies_1)
         _, max_ten_1, min_ten_1 = self.get_min_max_by_outliers_iqr(all_tensions_1)
@@ -3755,6 +3703,13 @@ class manual_tracing_multiple:
         plt.close()
 
     def plot_abnormal_edges(self, fig, ax, colonies_1, abnormal):
+        """
+        Abnormal edges defined as edges with large stochasticity
+        Parameters
+        -----------------
+        colonies_1 - colony class with calculated tensions and pressures
+        abnormal - of the form [[edge_label, time]]
+        """
         # abnormal is of the form [[label, time]]
 
 
@@ -3829,6 +3784,13 @@ class manual_tracing_multiple:
 
 
     def plot_guess_tension(self, fig, ax, ax1, colonies, node_label, edge_label):
+        """
+        PLOTTING FUNCTION
+        Plot edge over time specified by edge_label
+        Also plots 
+        Tension of that edge, guess tension of that edge
+        Should be offset 
+        """
         frames = [i for i in colonies.keys()]
 
         all_tensions, all_radii, all_pressures = self.all_tensions_and_radius_and_pressures(colonies)
@@ -3907,8 +3869,11 @@ class manual_tracing_multiple:
         plt.close()
 
     def plot_guess_pressures(self, fig, ax, ax1,colonies, cell_label):
-
-
+        """
+        Plot single cell over time specified by cell_label
+        ALso plots 
+        Pressure of that cell, guess pressure of that cell
+        """
         frames = [i for i in colonies.keys()]
 
         
@@ -3986,6 +3951,9 @@ class manual_tracing_multiple:
         plt.close()
 
     def plot_histogram(self, fig, ax, ax1, ax2, colonies):
+        """
+        Plots a histogram of tensions and pressures over time
+        """
 
         all_tensions, all_radii, all_pressures = self.all_tensions_and_radius_and_pressures(colonies)
         max_ten, min_ten, max_pres, min_pres = max(all_tensions), min(all_tensions), max(all_pressures), min(all_pressures)
@@ -4057,6 +4025,9 @@ class manual_tracing_multiple:
         plt.close()
 
     def get_repeat_edge(self, colonies):
+        """
+        Get a list of edge_labels that are present in all colonies provided (repeat labels)
+        """
         labels = []
         for t, v in colonies.items():    
             labels.append([e.label for e in v.tot_edges if e.label != []])
@@ -4065,6 +4036,9 @@ class manual_tracing_multiple:
         return list(repeat_edge_labels)
 
     def get_repeat_cell(self, colonies):
+        """
+        Get a list of cell_labels that are present in all colonies provided (repeat labels)
+        """
         labels = []
         for t, v in colonies.items():    
             labels.append([c.label for c in v.cells if c.label != []])
@@ -4073,6 +4047,9 @@ class manual_tracing_multiple:
         return list(repeat_cell_labels)
 
     def get_repeat_nodes(self, colonies):
+        """
+        Get a list of node_labels that are present in all colonies provided (repeat labels)
+        """
         labels = []
         for t, v in colonies.items():    
             labels.append([n.label for n in v.tot_nodes if n.label != []])
@@ -4081,6 +4058,10 @@ class manual_tracing_multiple:
         return list(repeat_node_labels)
 
     def simple_plot_all_edges(self, fig, ax, colonies):
+        """
+        PLOTTING FUNCTION
+        terrible plot of all tensions, dont use
+        """
 
         labels = self.get_repeat_edge(colonies)
 
@@ -4106,9 +4087,10 @@ class manual_tracing_multiple:
         #     self.simple_plot_all_edges(fig, ax, new_colony_range)
 
 
-
-
     def plot_all_edges(self, fig, ax, ax1, colonies, index = None, old_labels = None, counter = None, tensions = None, frames = None):
+        """
+        Terrible plot, dont use
+        """
 
         labels = self.get_repeat_edge(colonies)
 
@@ -4181,6 +4163,9 @@ class manual_tracing_multiple:
         plt.close()
 
     def plot_all_cells(self, ax, colonies):
+        """
+        Dont use
+        """
 
         all_tensions, all_radii, all_pressures = self.all_tensions_and_radius_and_pressures(colonies)      
         _, max_pres, min_pres = self.get_min_max_by_outliers_iqr(all_pressures, type = 'pressure')
@@ -4256,6 +4241,9 @@ class manual_tracing_multiple:
             ax4.tick_params('y', colors='blue')
 
     def seaborn_cells_dataframe_tensor(self, colonies, jump_number = 1, data = None):
+        """
+        Make a tensor dataframe, tracks movement over time
+        """
 
         initial_index = [int(k) for k,v in colonies.items()][0]
         # labels = [e.label for e in colonies[str(initial_index)].cells if e.label != []]
@@ -4280,49 +4268,6 @@ class manual_tracing_multiple:
 
             if int(t) == [int(k) for k,v in colonies.items()][-1]:
                 pass
-                # data['Index_Time'].append(int(t))
-                # data['Time'].append(int(t))
-                # data['Velocity_x'].append(0)
-                # data['Velocity_y'].append(0)
-                # data['x_pos'].append(0)
-                # data['y_pos'].append(0)
-                # data['Velocity_gradient_tensor'].append(0)
-                # data['Rotation'].append(0)
-                # data['Strain_rate'].append(0)
-                # data['Rate_of_area_change'].append(0)
-                # data['Eigenvalues_strain_1'].append(0)
-                # data['Eigenvalues_strain_2'].append(0)
-                # data['Eigenvectors_strain'].append(0)
-                # data['Eigenvalues_rotation'].append(0)
-                # data['Eigenvectors_rotation'].append(0)
-                # data['First_invariant'].append(0)
-                # data['Second_invariant'].append(0)
-                # data['ux_translational'].append(0)
-                # data['uy_translational'].append(0)
-                # data['vx_translational'].append(0)
-                # data['vy_translational'].append(0)
-                # data['Eigenvectors_strain_1'].append(0)
-                # data['Eigenvectors_strain_2'].append(0)
-                # data['u_translational'].append(0)
-                # data['v_translational'].append(0)
-                # data['Mean_resid'].append(0)
-                # data['Std_resid'].append(0)
-                # data['Mean_tension'].append(0)
-                # data['Std_tension'].append(0)
-                # data['Mean_pressure'].append(0)
-                # data['Std_pressure'].append(0)
-
-                # data['Area'].append(0)
-                # data['Area_std'].append(0)
-                # data['Perimeter'].append(0)
-                # data['Perimeter_std'].append(0)
-                # data['Number_of_edges'].append(0)
-                # data['Number_of_edges_std'].append(0)
-                # data['Length_of_edges'].append(0)
-                # data['Length_of_edges_std'].append(0)
-                # data['Radius_of_edges'].append(0)
-                # data['Radius_of_edges_std'].append(0)
-
 
             # Check that its not the last one
 
@@ -4488,6 +4433,9 @@ class manual_tracing_multiple:
         return tensor_dataframe
                 
     def plot_tensor_dataframe(self,ax,  colonies, tensor_dataframe):
+        """
+        Make strain rate movie
+        """
 
         count = 0
         for t,v in colonies.items():
@@ -4614,55 +4562,11 @@ class manual_tracing_multiple:
         plt.clf()
         plt.close()
 
-        
-
-
-
-
-
-        # w, v = np.linalg.eig(tensor)
-        # vectors = w *v 
-
-        # print(w)
-        # print(v)
-        # print(vectors)
-
-        # for j, s in enumerate(w):
-        #     if s > 0:
-        #         ax.plot(vectors[j].real, vectors[j].imag, color = 'blue')
-        #     else:
-        #         ax.plot(vectors[j].real, vectors[j].imag, color = 'red')
-
-        # strain_eigenvectors = tensor_dataframe.Eigenvectors_strain[t]
-        # strain_eigenvalues = tensor_dataframe.Eigenvalues_strain[t]
-        # strain_vectors = strain_eigenvalues * strain_eigenvectors
-
-        # rotation_eigenvectors = tensor_dataframe.Eigenvectors_rotation[t]
-        # rotation_eigenvalues = tensor_dataframe.Eigenvalues_rotation[t]
-        # rotation_vectors = rotation_eigenvalues * rotation_eigenvectors
-
-        # plt.Circle((1,1), radius = max(strain_eigenvalues), fill = 'False')
-        # for j, s in enumerate(strain_eigenvalues):
-
-        #     if s > 0:
-        #         ax.plot(strain_vectors[j] + [1,1] + , color = 'red')
-        #     else:
-        #         ax.plot(strain_vectors[j] + [1,1], color = 'blue')
-
-        # plt.Circle((-1,1), radius = max(rotation_eigenvalues), fill = 'False')
-        # for j, s in enumerate(rotation_eigenvalues):
-
-        #     if s > 0:
-        #         ax.plot(np.imag(rotation_vectors[j]) + [-1,1], color = 'red')
-        #     else:
-        #         ax.plot(np.imag(rotation_vectors[j]) + [-1,1], color = 'blue')
-
-
-
-
-
 
     def seaborn_nodes_dataframe(self, colonies, data, old_labels = None, counter = None):
+        """
+        Make a nodes_dataframe
+        """
 
         initial_index = [int(k) for k,v in colonies.items()][0]
         labels = [e.label for e in colonies[str(initial_index)].tot_nodes if e.label != []]
@@ -4745,7 +4649,9 @@ class manual_tracing_multiple:
 
 
     def seaborn_plot(self, ax, colonies, common_edge_labels, common_cell_labels, data = None, cell_data = None, old_labels = None, old_cell_labels = None, counter = None, min_ten = None, max_ten = None, min_pres = None, max_pres = None):
-
+        """
+        Make an edges_dataframe and cells_dataframe
+        """
         #labels = self.get_repeat_edge(colonies)
 
 
@@ -4857,6 +4763,19 @@ class manual_tracing_multiple:
                         [centroids.append([c.centroid() for c in v.cells if c.label == cell_lab][0])]
                         [pressures.append([c.pressure for c in v.cells if c.label == cell_lab][0])]
                         [perims.append([c.perimeter() for c in v.cells if c.label == cell_lab][0])]
+
+
+                        # testing for effective stiffness vector in every cell
+                        # curr_cell = [c for c in v.cells if c.label == cell_lab][0]
+                        # adj_cells = [c for c in v.cells if set(c.edges).intersection(curr_cell.edges) != set()]
+                        # for ad_c in adj_cells:
+                        # 	common_edges = [e for e in ad_c.edges if e in curr_cell.edges]
+                        # 	tension = np.mean([e.tension for e in common_edges])
+                        # 	vec = 
+
+
+
+
                         if cell_index == 0:
                             cell_data['Change_in_area'].append(0)
                             cell_data['Change_in_pressure'].append(0)
@@ -4918,6 +4837,9 @@ class manual_tracing_multiple:
         
 
     def make_all_edge_movie_simple(self, fig, ax, colonies):
+        """
+        Dont use!
+        """
         self.simple_plot_all_edges(fig, ax, colonies)
 
         fps = 1
