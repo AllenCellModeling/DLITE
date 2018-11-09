@@ -5224,7 +5224,7 @@ class surface_evolver:
             a = [l.split('\t') for l in f]
 
         vertices = {'id': [], 'x': [], 'y': []}
-        edges = {'id': [], 'v1': [], 'v2': []}
+        edges = {'id': [], 'v1': [], 'v2': [], 'tension' : []}
         faces = {'id': [], 'ed_id': []}
         for j, num in enumerate(a):
             try:
@@ -5239,6 +5239,17 @@ class surface_evolver:
                             vertices['y'].append(v_list[2])
                         else:
                             break
+                # if num[0].split()[0] ==  'edges':
+                #     for vv in a[j + 1:-1]:
+                #         if len(vv) != 0:
+                #             # print('edges')
+                #             # print(vv[0].split())
+                #             v_list = vv[0].split()
+                #             edges['id'].append(v_list[0])
+                #             edges['v1'].append(v_list[1])
+                #             edges['v2'].append(v_list[2])
+                #         else:
+                #             break
                 if num[0].split()[0] ==  'edges':
                     for vv in a[j + 1:-1]:
                         if len(vv) != 0:
@@ -5248,6 +5259,13 @@ class surface_evolver:
                             edges['id'].append(v_list[0])
                             edges['v1'].append(v_list[1])
                             edges['v2'].append(v_list[2])
+                            if len(v_list) > 3:
+                                if v_list[3] == 'density':
+                                    edges['tension'].append(float(v_list[4]))
+                                else:
+                                    edges['tension'].append(1)
+                            else:
+                                edges['tension'].append(1)
                         else:
                             break
                         
@@ -5302,8 +5320,10 @@ class surface_evolver:
 
         # First loop through all face ids
         X, Y = [], []
+        all_ten = []
         for face in unique_faces:
             x, y = [], []
+            tensions = []
             
             for k, v in faces_data.iterrows():
                 # v[0] is the face id, v[1] is the edge id , i set it up as a one to one mapping, but multiple edge ids 
@@ -5315,9 +5335,11 @@ class surface_evolver:
                     if int(v[1]) > 0:
                         v1_id = edges_data.at[v[1], 'v1']
                         v2_id = edges_data.at[v[1], 'v2']
+                        t1 = edges_data.at[v[1], 'tension']
                     else:
                         v2_id = edges_data.at[str(-int(v[1])), 'v1']
                         v1_id = edges_data.at[str(-int(v[1])), 'v2']
+                        t1 = edges_data.at[str(-int(v[1])), 'tension']
                     
                     # go to vertices_data to get x and y co-ords of that vertex
                     # print(v1_id, v2_id)
@@ -5325,6 +5347,8 @@ class surface_evolver:
                     y1 = float(vertices_data.at[v1_id, 'y'])
                     x2 = float(vertices_data.at[v2_id, 'x'])
                     y2 = float(vertices_data.at[v2_id, 'y'])
+                    
+                    tensions.append(t1)
 
                     # print(x1, y1, x2, y2)
         #             print(int(face), v[1], x1, y1, x2, y2)
@@ -5335,21 +5359,29 @@ class surface_evolver:
             y.append(y2)
             X.append(x)
             Y.append(y)
+            all_ten.append(tensions)
+
+
         for a, b in zip(X, Y):    
             a.pop(0)
             b.pop(0)
 
-         # Get face-face junction co-ordinates
+        # Get face-face junction co-ordinates
 
-        new_x, new_y = [], []
+        new_x, new_y, new_ten = [], [], []
 
         for j, num in enumerate(unique_faces):
             cur_x = X[j]
             cur_y = Y[j]
+            cur_ten = all_ten[j]
             # print(cur_x)
             for j, num in enumerate(unique_faces):
                 int_x = [a for a in cur_x if a in X[j]]
                 int_y = [a for a in cur_y if a in Y[j]]
+                
+                ind_int_x = [cur_x.index(a) for a in int_x]
+                int_ten = [cur_ten[j] for j in ind_int_x]
+                
                 if len(int_x) != len(cur_x) and len(int_x) != 0:
                     check = 0
                     for a in new_x:
@@ -5360,14 +5392,22 @@ class surface_evolver:
                         new_x.append(int_x)
                     
                         new_y.append(int_y)
+                        new_ten.append(int_ten)
 
-        ex = manual_tracing(new_x, new_y)
-        nodes, edges, new = ex.cleanup(5)
+        ex = manual_tracing(new_x, new_y, new_ten)
+        nodes, edges, new = ex.cleanup(0.01)
 
         print('Number of fit edges:',len(edges))
         # cells = ex.find_all_cells(edges)
         cells = ex.find_cycles(edges)
+
+        mean_gt = np.mean([e.ground_truth for e in edges])
+        for e in edges:
+            e.ground_truth = e.ground_truth/mean_gt
+            
+        print('ground_truth', [e.ground_truth for e in edges])
         print('Number of cells:', len(cells))
+
 
         return nodes, edges, cells
 
