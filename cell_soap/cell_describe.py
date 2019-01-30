@@ -123,6 +123,8 @@ class node:
         self._residual_vector = []
         # edge indices in colony.tot_edges
         self._edge_indices = []
+        self._previous_label = []
+        self._velocity_vector = []
     
     # def __str__(self):
     #     return "x:%04i, y:%04i"%tuple(self.loc)
@@ -221,6 +223,26 @@ class node:
         """
         return self._label
 
+    @label.setter
+    def label(self, label):
+        self._label = label
+
+    @property
+    def previous_label(self):
+        return self._previous_label
+
+    @previous_label.setter
+    def previous_label(self, prev_label):
+        self._previous_label = prev_label
+
+    @property
+    def velocity_vector(self):
+        return self._velocity_vector
+    
+    @velocity_vector.setter
+    def velocity_vector(self, velocity):
+        self._velocity_vector = velocity    
+
     @property    
     def residual_vector(self):
         """
@@ -234,11 +256,6 @@ class node:
         Give a label to a node so we can track it over time
         """
         self._residual_vector = residual
-
-
-    @label.setter
-    def label(self, label):
-        self._label = label
 
     def plot(self, ax, **kwargs):
         """
@@ -828,6 +845,7 @@ class cell:
         self._pressure = []
         self._guess_pressure = []
         self._label = []
+        self._ground_truth_pressure = []
 
         # for edge in edges:
         #     edge.cells = self
@@ -894,6 +912,14 @@ class cell:
     def pressure(self, pres):
         self._pressure = pres
 
+    @property
+    def ground_truth_pressure(self):
+        return self._ground_truth_pressure
+
+    @ground_truth_pressure.setter
+    def ground_truth_pressure(self, ground_truth_pressure):
+        self._ground_truth_pressure = ground_truth_pressure
+    
     @property
     def label(self):
         """
@@ -1330,6 +1356,8 @@ class colony:
                     # tpe_best = fmin(fn=self.objective_function_tension, space=space, algo=tpe_algo, trials=tpe_trials, max_evals=2000)
                     # print(tpe_best)
                 else:
+                    # for k, xxx in enumerate(x0):
+                    #     x0[k] = random.randint(0,101)/100
                     # Run normal L-BFGS
                     sol = minimize(self.objective_function_tension, x0, method = 'L-BFGS-B', bounds = bnds, options = {**kwargs})
 
@@ -1420,13 +1448,13 @@ class colony:
         for j, e_or_c in enumerate(edge_or_cell):
             if type(e_or_c) == edge:
                 if not e_or_c.guess_tension:
-                    #b.append((0, np.inf))
-                    b.append((0.0001, 1))
+                    b.append((-np.inf, np.inf))
+                    #b.append((0.0001, 1))
                     # b.append((-np.inf, np.inf))
                 else:
                     tolerance = e_or_c.guess_tension * tol_perc
-                    #b.append((0, np.inf))
-                    b.append((0.0001, 1))
+                    b.append((-np.inf, np.inf))
+                    #b.append((0.0001, 1))
                     # b.append((e_or_c.guess_tension - tolerance, e_or_c.guess_tension + tolerance))                    
             else:
                 if not e_or_c.guess_pressure:
@@ -1550,6 +1578,8 @@ class colony:
                 starting_tensions = np.array(starting_tensions)
 
                 tension_vecs = np.multiply(node_vecs, starting_tensions)
+
+                testing_sum_mags = np.sum(starting_tensions)
                 
                 # print(node_vecs, starting_tensions)
 
@@ -1571,15 +1601,53 @@ class colony:
                 # print(resid_mag)
 
                 coeff = 1
-                hyper = 1
+                hyper = 0
                 coeff2 = 0
+                gamma = 0
 
                 # THIS IS CORRECT
 
                 if len(previous_tensions) > 0:
-                    objective = objective + resid_mag + coeff * resid_mag/np.sum(tension_vec_mags) + coeff2 * np.exp(hyper*(resid_mag - resid_mag_old))
+                    if len(node.velocity_vector ) == 0:
+                        # correct
+
+                        objective = objective + resid_mag + coeff * resid_mag/np.sum(tension_vec_mags) + coeff2 * np.exp(hyper*(resid_mag - resid_mag_old))
+
+                        # try 
+                        #objective = objective + resid_mag + (resid_mag/np.sum(tension_vec_mags)) ** 1/2
+  
+                        # objective = objective + coeff * (resid_mag/np.sum(tension_vec_mags) )**2
+                        #objective = objective + coeff * resid_mag/np.sum(tension_vec_mags) 
+                    else:
+                        # correct
+                        objective = objective + resid_mag + coeff * resid_mag/np.sum(tension_vec_mags) + coeff2 * np.exp(hyper*(resid_mag - resid_mag_old))
+                        
+                        #try
+                        #objective = objective + resid_mag + (resid_mag/np.sum(tension_vec_mags)) ** 1/2
+                        #objective = objective + coeff * resid_mag/np.sum(tension_vec_mags) 
+                       #objective = objective + coeff * (resid_mag/np.sum(tension_vec_mags) - np.linalg.norm(node.velocity_vector)*gamma)
+
                 else:
-                    objective = objective + resid_mag + coeff * resid_mag/np.sum(tension_vec_mags) 
+                    #objective = objective + resid_mag + coeff * (resid_mag/np.sum(tension_vec_mags))**2
+                    #objective = objective + coeff * resid_mag/np.sum(tension_vec_mags) 
+                    if len(node.velocity_vector ) == 0:
+                        #objective = objective + resid_mag + coeff * (resid_mag/np.sum(tension_vec_mags))**2 + coeff2 * np.exp(hyper*(resid_mag - resid_mag_old))
+                        # objective = objective + coeff * (resid_mag/np.sum(tension_vec_mags) )**2
+                        
+                        # correct
+                        objective = objective + resid_mag + coeff * resid_mag/np.sum(tension_vec_mags) 
+
+                        # try 
+                        # objective = objective + resid_mag + (resid_mag/np.sum(tension_vec_mags)) ** 1/2
+                        #objective = objective + coeff * resid_mag/np.sum(tension_vec_mags) 
+                    else:
+                        # correct
+                        objective = objective + resid_mag + coeff * resid_mag/np.sum(tension_vec_mags) 
+
+                        # try
+                        # objective = objective + resid_mag + (resid_mag/np.sum(tension_vec_mags)) ** 1/2
+                        #objective = objective + coeff * resid_mag/np.sum(tension_vec_mags) 
+                        #objective = objective + coeff * (resid_mag/np.sum(tension_vec_mags) - np.linalg.norm(node.velocity_vector)*gamma)
 
                 # THIS IS TEST
         #         objective = objective + resid_mag 
@@ -1876,12 +1944,19 @@ class colony:
             pressures = sol.x
             P = []
 
-        for j, cell in enumerate(self.cells):
-            cell.pressure = pressures[j]
+        if solver == 'KKT':
+            for j, cell in enumerate(self.cells):
+                cell.pressure = pressures[j]
+        else:
+            mean_pres = np.mean(pressures)
+            print('Mean solution press', mean_pres)
+            for j, cell in enumerate(self.cells):
+                cell.pressure = pressures[j]/mean_pres - 1
+            # cell.pressure = pressures[j]
         
         return pressures, P, A
 
-    def plot_tensions(self, ax, fig, tensions, min_ten = None, max_ten = None, specify_color = None,type = None, **kwargs):
+    def plot_tensions(self, ax, fig, tensions, min_ten = None, max_ten = None, specify_color = None,type = None, cbar = 'yes', **kwargs):
         """
         Plot normalized tensions (min, width) with colorbar
         """
@@ -1920,10 +1995,10 @@ class colony:
 
         # fake up the array of the scalar mappable. 
         sm._A = []
-
-        cbaxes = fig.add_axes([0.13, 0.1, 0.03, 0.8])
-        cl = plt.colorbar(sm, cax = cbaxes)
-        cl.set_label('Normalized tension', fontsize = 13, labelpad = -60)
+        if cbar == 'yes':
+            cbaxes = fig.add_axes([0.13, 0.1, 0.03, 0.8])
+            cl = plt.colorbar(sm, cax = cbaxes)
+            cl.set_label('Normalized tension', fontsize = 13, labelpad = -60)
 
     def plot_pressures(self, ax, fig, pressures, min_pres = None, max_pres = None, specify_color = None, **kwargs):
         """
@@ -1983,14 +2058,14 @@ class colony:
             if min_ten == None and max_ten == None:
                 return (tensions - min(tensions)) / float(max(tensions) - min(tensions))
             else:
-                return (tensions - min_ten) / float(max_ten - min_ten)
+                return [(a - min_ten) / float(max_ten - min_ten) for a in tensions]
 
         def norm2(pressures, min_pres = None, max_pres = None):
             if min_pres == None and max_pres == None:
                 #return (pressures - np.mean(pressures)) / np.std(pressures)
                 return (pressures - min(pressures)) / float(max(pressures) - min(pressures))
             else:
-                return (pressures - min_pres) / float(max_pres - min_pres)
+                return [(p - min_pres) / float(max_pres - min_pres) for p in pressures]
 
         c1 = norm(tensions, min_ten, max_ten)
         c2 = norm2(pressures, min_pres, max_pres)
@@ -2012,9 +2087,9 @@ class colony:
 
 
         if specify_color is not None:
-            sm = plt.cm.ScalarMappable(cmap=cm.jet, norm=plt.Normalize(vmin=-1, vmax=1))
+            sm = plt.cm.ScalarMappable(cmap=cm.jet, norm=plt.Normalize(vmin=-min_pres, vmax=max_pres))
         else:
-            sm = plt.cm.ScalarMappable(cmap=cm.viridis, norm=plt.Normalize(vmin=-1, vmax=1))
+            sm = plt.cm.ScalarMappable(cmap=cm.viridis, norm=plt.Normalize(vmin=-min_pres, vmax=max_pres))
         # fake up the array of the scalar mappable. 
         sm._A = []
 
@@ -2031,9 +2106,9 @@ class colony:
                 an_edge.plot(ax, ec = cm.viridis(c1[j]), **kwargs)
 
         if specify_color is not None:
-            sm = plt.cm.ScalarMappable(cmap=cm.jet, norm=plt.Normalize(vmin=0, vmax=1))
+            sm = plt.cm.ScalarMappable(cmap=cm.jet, norm=plt.Normalize(vmin=min_ten, vmax=max_ten))
         else:
-            sm = plt.cm.ScalarMappable(cmap=cm.viridis, norm=plt.Normalize(vmin=0, vmax=1))
+            sm = plt.cm.ScalarMappable(cmap=cm.viridis, norm=plt.Normalize(vmin=min_ten, vmax=max_ten))
         # fake up the array of the scalar mappable. 
         sm._A = []
 
@@ -3106,6 +3181,7 @@ class manual_tracing_multiple:
 
         new_dictionary = defaultdict(list)
         total_now_edges = []
+        special_labels = []
 
         for node in now_nodes:
             if node.label != []:
@@ -3142,23 +3218,51 @@ class manual_tracing_multiple:
                                     p.label = k.label
                         new_dictionary[node.label].append(temp_edges)
                         new_dictionary[node.label].append(new_vecs)
+
+                        if len([e.label for e in old_edges_node]) != len([e.label for e in node.edges]):
+                            special_labels.append(node.label)
+                            print('LOOK HERE')
+                            print('Node label', node.label, 'old edge labels', [e.label for e in old_edges_node], 'New edge labels', [e.label for e in node.edges], end = '  ')
+
                     except:
                         pass
 
 
         # New stuff
         if upper_limit < 1000:
-            count = 1000
+            # count = 1000
+            count = upper_limit + 1
         else:
             count = upper_limit + 1
 
         if upper_edge_limit < 1000:
-            count_edge = 1000
+            # count_edge = 1000
+            count_edge = upper_edge_limit + 1
         else:
             count_edge = upper_edge_limit + 1
 
         # count_edge += count_edge + 1 
 
+
+        # for node in now_nodes:
+        #     check = 0
+        #     if node.label == []:
+        #         node.label = count
+        #         count += 1
+        #         check = 1
+        #         print('node',node.label)
+        #     for e in node.edges:
+        #         if e.label == []:
+        #             e.label = count_edge
+        #             count_edge += 1
+        #             check = 1
+        #             print('edge',e.label)
+        #     if check == 1:
+        #         temp_edges = node.edges
+        #         new_vecs = [func(p, node) for p in temp_edges]
+        #         print(temp_edges, new_vecs)
+        #         new_dictionary[node.label].append(temp_edges)
+        #         new_dictionary[node.label].append(new_vecs)
 
         for node in now_nodes:
             check = 0
@@ -3176,9 +3280,28 @@ class manual_tracing_multiple:
             if check == 1:
                 temp_edges = node.edges
                 new_vecs = [func(p, node) for p in temp_edges]
-                print(temp_edges, new_vecs)
+                #print(temp_edges, new_vecs)
+                if len(new_dictionary[node.label]) == 2:
+                    new_dictionary[node.label].pop()
+                    new_dictionary[node.label].pop()
                 new_dictionary[node.label].append(temp_edges)
                 new_dictionary[node.label].append(new_vecs)
+            if node.label in special_labels:
+                print('Special label', node.label)
+                temp_edges = node.edges
+                new_vecs = [func(p, node) for p in temp_edges]
+                #print(temp_edges, new_vecs)
+                # print(temp_edges)
+                # print(new_vecs)
+                # print(new_dictionary[node.label][0])
+                # print(new_dictionary[node.label][1])
+                # print(new_dictionary)
+                new_dictionary[node.label].pop()
+                new_dictionary[node.label].pop()
+                new_dictionary[node.label].append(temp_edges)
+                new_dictionary[node.label].append(new_vecs)
+                print(new_dictionary[node.label][0])
+                print(new_dictionary[node.label][1])
         # end of stuff
 
 
@@ -3261,8 +3384,8 @@ class manual_tracing_multiple:
                 if new_ed.label == label:
                     if new_ed.guess_tension == []:
                         new_ed.guess_tension = ed.tension
-                        new_ed.previous_label = label
-                        new_ed.previous_tension_vectors = ed.tension_vectors
+                        # new_ed.previous_label = label
+                        # new_ed.previous_tension_vectors = ed.tension_vectors
 
         # for k,v in combined_dict.items():
         #     # v[0] is list of old edges and v[1] is list of matching new edges
@@ -3499,7 +3622,7 @@ class manual_tracing_multiple:
         plt.close()
 
 
-    def plot_tensions(self, fig, ax, colonies, specify_aspect = None, specify_color = None, **kwargs):
+    def plot_tensions(self, fig, ax, colonies, specify_aspect = None, specify_color = None, type = None, **kwargs):
         """
         PLOTTONG FUNCTION
         Make a tension movie (colormap) for all timepoints of the colony
@@ -3517,7 +3640,10 @@ class manual_tracing_multiple:
             t= int(t)
             nodes = colonies[index].tot_nodes
             edges = colonies[index].tot_edges
-            tensions = [e.tension for e in edges]
+            if type == 'Ground_truth':
+                tensions = [e.ground_truth for e in edges]
+            else:
+                tensions = [e.tension for e in edges]
             colonies[index].plot_tensions(ax, fig, tensions, min_ten, max_ten, specify_color, **kwargs)
             if specify_aspect is not None:
                 ax.set(xlim = [0,600], ylim = [0,600], aspect = 1)
@@ -3774,7 +3900,7 @@ class manual_tracing_multiple:
         plt.close()
 
 
-    def plot_compare_single_edge_tension(self, fig, ax, ax1, colonies_1, colonies_2, node_label, edge_label, type = None, ground_truth = None):
+    def plot_compare_single_edge_tension(self, fig, ax, ax1, colonies_1, colonies_2, node_label, edge_label, type = None, ground_truth = None, xlim_end = None):
         """
         Plot single edge over time specified by edge label (dont really use node_label)
         Also plots 
@@ -3845,13 +3971,25 @@ class manual_tracing_multiple:
 
             if type == 'surface_evolver':
                 ax.set(xlim =[-2,2], ylim = [-2,2], aspect = 1)
+
+                ax1.set(xlim = [0,55], ylim = [0, 2.2])
+                ax2.set(xlim = [0,55], ylim = [0, 2.2])
             elif type == 'surface_evolver_cellfit':
-                ax.set(xlim =[200,800], ylim = [200,800], aspect = 1)
+                if xlim_end is None:
+                    ax.set(xlim =[200,800], ylim = [200,800], aspect = 1)
+                    ax1.set(xlim = [0,55], ylim = [0, 2.2])
+                    ax2.set(xlim = [0,55], ylim = [0, 2.2])
+                else:
+                    ax.set(xlim =[200,800], ylim = [200,800], aspect = 1)
+                    ax1.set(xlim = [0,xlim_end], ylim = [0, 2.2])
+                    ax2.set(xlim = [0,xlim_end], ylim = [0, 2.2])
+
             else:
                 ax.set(xlim = [0,1030], ylim = [0,1030], aspect = 1)
+                ax1.set(xlim = [0,31], ylim = [0, 2.2])
+                ax2.set(xlim = [0,31], ylim = [0, 2.2])
           #  ax1.set(xlim = [0,31], ylim = [0,0.004])
-            ax1.set(xlim = [0,31], ylim = [0, 2.2])
-            ax2.set(xlim = [0,31], ylim = [0, 2.2])
+
 
             ax1.xaxis.set_major_locator(plt.MaxNLocator(12))
 
@@ -4648,7 +4786,7 @@ class manual_tracing_multiple:
                 circle1 = plt.Circle((0, 0), radius, fill = False)
                 ax.add_artist(circle1)
                 ax.set_aspect(1)
-                ax.set(xlim = [-0.2, 0.2], ylim = [-0.2, 0.2])
+                ax.set(xlim = [-0.02, 0.02], ylim = [-0.02, 0.02])
 
                 #tensor = tensor_dataframe.Rotation[int(t)]
                 tensor = tensor_dataframe.Strain_rate[int(t)]
@@ -4771,7 +4909,7 @@ class manual_tracing_multiple:
         labels = sorted(labels)
 
         if data is None:
-            data = {'Index_Node_Label': [],'Index_Time': [], 'Time': [], 'Number_of_connected_edges':[],'Connected_edge_labels': [],  'Residual': [], 'Change_in_num_con_edges': [], 'Length_of_connected_edges': [], 'Movement_from_prev_t': [], 'Mean_radius_of_connected_edges': [], 'Node_Label': [], 'Mean_Tension': [], 'Change_in_mean_tension': [], 'New_residual': []}
+            data = {'Index_Node_Label': [],'Index_Time': [], 'Time': [], 'Number_of_connected_edges':[],'Average_curvature_of_connected_edges':[],'Connected_edge_labels': [],  'Residual': [], 'Change_in_num_con_edges': [], 'Length_of_connected_edges': [], 'Movement_from_prev_t': [], 'Mean_radius_of_connected_edges': [], 'Node_Label': [], 'Mean_Tension': [],'Std_Tension': [], 'Change_in_mean_tension': [], 'Net_residual': []}
             nodes_dataframe = pd.DataFrame(data)
             nodes_dataframe.set_index(['Index_Node_Label','Index_Time'], inplace = True)
 
@@ -4802,7 +4940,7 @@ class manual_tracing_multiple:
                         con_labels = [e.label for n in v.tot_nodes for e in n.edges if n.label == lab]           
                         data['Connected_edge_labels'].append(con_labels)
                         
-                        data['New_residual'].append([np.linalg.norm(n.residual_vector) for n in v.tot_nodes if n.label == lab][0])
+                        data['Net_residual'].append([np.linalg.norm(n.residual_vector) for n in v.tot_nodes if n.label == lab][0])
                         data['Residual'].append(resid_mag)
                         data['Time'].append(int(t))
                         data['Index_Time'].append(int(t))
@@ -4810,9 +4948,12 @@ class manual_tracing_multiple:
                         data['Index_Node_Label'].append(lab)
                         data['Number_of_connected_edges'].append([len(n.edges) for n in v.tot_nodes if n.label == lab][0])
                         num_of_con_edges.append([len(n.edges) for n in v.tot_nodes if n.label == lab][0])
+                        avg_radius_con_edges = sum([1/e.radius for n in v.tot_nodes for e in n.edges if n.label == lab])
+                        data['Average_curvature_of_connected_edges'].append(avg_radius_con_edges)
                         data['Length_of_connected_edges'].append(sum([e.straight_length for n in v.tot_nodes for e in n.edges if n.label == lab]))
                         data['Mean_radius_of_connected_edges'].append(sum([e.radius for n in v.tot_nodes for e in n.edges if n.label == lab]))
                         data['Mean_Tension'].append(np.mean([e.tension for n in v.tot_nodes for e in n.edges if n.label == lab]))
+                        data['Std_Tension'].append(np.std([e.tension for n in v.tot_nodes for e in n.edges if n.label == lab]))
                         tensions.append(np.mean([e.tension for n in v.tot_nodes for e in n.edges if n.label == lab]))
                         locs.append([n.loc for n in v.tot_nodes if n.label == lab][0])
                         if node_index == 0:
@@ -4869,15 +5010,15 @@ class manual_tracing_multiple:
 
         if data is None:
             if ground_truth is not None:
-                data = {'Index_Edge_Labels': [], 'Index_Time':[], 'Edge_Labels': [], 'Strain_rate': [],'Normalized_Tensions': [],'Stochasticity_in_tension': [], 'Local_normalized_tensions': [], 'Deviation': [], 'Tensions': [], 'Repeat_Tensions': [], 'Change_in_tension': [], 'Time': [], 'Curvature': [], 'Radius': [], 'Straight_Length': [], 'Total_connected_edge_length':[], 'Change_in_length': [], 'Change_in_connected_edge_length': [],'Binary_length_change': [] , 'Binary_connected_length_change':[], 'Ground_truth': [], 'Ground_truth_error': []}
+                data = {'Index_Edge_Labels': [], 'Index_Time':[], 'Edge_Labels': [], 'Strain_rate': [],'Topological_changes': [],'Normalized_Tensions': [],'Ground_truth_stochasticity_in_tension': [],'Stochasticity_in_tension': [], 'Local_normalized_tensions': [], 'Deviation': [], 'Tensions': [], 'Repeat_Tensions': [], 'Change_in_tension': [], 'Time': [], 'Curvature': [], 'Radius': [], 'Straight_Length': [], 'Total_connected_edge_length':[], 'Change_in_length': [], 'Change_in_connected_edge_length': [],'Binary_length_change': [] , 'Binary_connected_length_change':[], 'Ground_truth': [], 'Ground_truth_error': []}
             else:
-                data = {'Index_Edge_Labels': [], 'Index_Time':[], 'Edge_Labels': [], 'Strain_rate': [],'Normalized_Tensions': [],'Stochasticity_in_tension': [], 'Local_normalized_tensions': [], 'Deviation': [], 'Tensions': [], 'Repeat_Tensions': [], 'Change_in_tension': [], 'Time': [], 'Curvature': [], 'Radius': [], 'Straight_Length': [], 'Total_connected_edge_length':[], 'Change_in_length': [], 'Change_in_connected_edge_length': [],'Binary_length_change': [] , 'Binary_connected_length_change':[]}
+                data = {'Index_Edge_Labels': [], 'Index_Time':[], 'Edge_Labels': [], 'Strain_rate': [],'Topological_changes': [], 'Normalized_Tensions': [],'Stochasticity_in_tension': [], 'Local_normalized_tensions': [], 'Deviation': [], 'Tensions': [], 'Repeat_Tensions': [], 'Change_in_tension': [], 'Time': [], 'Curvature': [], 'Radius': [], 'Straight_Length': [], 'Total_connected_edge_length':[], 'Change_in_length': [], 'Change_in_connected_edge_length': [],'Binary_length_change': [] , 'Binary_connected_length_change':[]}
             edges_dataframe = pd.DataFrame(data)
             edges_dataframe.set_index(['Index_Edge_Labels','Index_Time'])
             #edges_dataframe.set_index(['Index_Edge_Labels', 'Index_Time'], inplace = True)
 
         if cell_data is None:
-            cell_data = {'Index_Cell_Labels': [], 'Index_Cell_Time':[], 'Cell_Labels': [], 'Centroid_movement': [], 'Rotation': [], 'Binary_rotation': [],  'Number_of_edges': [],  'Normalized_Pressures': [], 'Pressures': [], 'Mean_node_edge_tension': [], 'Sum_edge_tension': [], 'Repeat_Pressures': [], 'Change_in_pressure':[] , 'Cell_Time': [], 'Area': [], 'Perimeter': [], 'Change_in_area': [], 'Binary_area_change': [], 'Change_in_perimeter': [], 'Binary_perim_change': [], 'Energy': []}
+            cell_data = {'Index_Cell_Labels': [], 'Index_Cell_Time':[], 'Cell_Labels': [],'Ground_truth_pressure': [], 'Centroid_movement': [], 'Rotation': [], 'Binary_rotation': [],  'Number_of_edges': [],  'Normalized_Pressures': [], 'Pressures': [], 'Mean_node_edge_tension': [], 'Sum_edge_tension': [], 'Repeat_Pressures': [], 'Change_in_pressure':[] , 'Cell_Time': [], 'Area': [], 'Perimeter': [], 'Change_in_area': [], 'Binary_area_change': [], 'Change_in_perimeter': [], 'Binary_perim_change': [], 'Energy': []}
             cells_dataframe = pd.DataFrame(cell_data)
             cells_dataframe.set_index(['Index_Cell_Labels', 'Index_Cell_Time'], inplace = True)
 
@@ -4885,9 +5026,11 @@ class manual_tracing_multiple:
         for lab in labels:
             if old_labels == None or lab not in old_labels:
                 edge_index = 0
-                lengths, con_lengths, tensions, norm_tensions = [], [], [], []
+                lengths, con_lengths, tensions, norm_tensions, norm_ground_truths, all_con_labels = [], [], [], [],[], []
                 for t, v in colonies.items():
                     mean_tens = np.mean([e.tension for e in v.tot_edges])
+                    if ground_truth is not None:
+                        mean_ground_truths = np.mean([e.ground_truth for e in v.tot_edges])
                     if [e.tension for e in v.tot_edges if e.label == lab] != []:
                         data['Edge_Labels'].append(lab)
                         data['Index_Edge_Labels'].append(lab)
@@ -4899,13 +5042,17 @@ class manual_tracing_multiple:
                             data['Repeat_Tensions'].append(np.NaN)
 
                         if ground_truth is not None:
-                            data['Ground_truth'].append([e.ground_truth for e in v.tot_edges if e.label == lab][0])
-                            data['Ground_truth_error'].append(([e.ground_truth for e in v.tot_edges if e.label == lab][0] - [e.tension for e in v.tot_edges if e.label == lab][0]/mean_tens) )
+                            # print('Mean ground truth', mean_ground_truths)
+                            data['Ground_truth'].append([e.ground_truth for e in v.tot_edges if e.label == lab][0]/mean_ground_truths)
+                            data['Ground_truth_error'].append(np.abs([e.ground_truth for e in v.tot_edges if e.label == lab][0] - [e.tension for e in v.tot_edges if e.label == lab][0]/mean_tens) )
 
                         data['Local_normalized_tensions'].append([e.tension for e in v.tot_edges if e.label == lab][0]/mean_tens)
                         [norm_tensions.append([e.tension for e in v.tot_edges if e.label == lab][0]/mean_tens)]
+                        if ground_truth is not None:
+                            [norm_ground_truths.append([e.ground_truth for e in v.tot_edges if e.label == lab][0]/mean_ground_truths)]
                         current_edge = [e for e in v.tot_edges if e.label == lab][0]
                         con_edges = [e for n in current_edge.nodes for e in n.edges if e != current_edge]
+                        con_labels = [e.label for e in con_edges]
                         con_lengths.append(sum([e.straight_length for e in con_edges]))
                         data['Deviation'].append([e.tension for e in v.tot_edges if e.label == lab][0] - np.mean(np.array([e.tension for e in v.tot_edges ])))
                         data['Total_connected_edge_length'].append(sum([e.straight_length for e in con_edges]))
@@ -4913,23 +5060,42 @@ class manual_tracing_multiple:
                         data['Index_Time'].append(int(t))
                         data['Radius'].append([e.radius for e in v.tot_edges if e.label == lab][0])
                         data['Curvature'].append([1/e.radius for e in v.tot_edges if e.label == lab][0])
+                        all_con_labels.append(con_labels)
                         [tensions.append([e.tension for e in v.tot_edges if e.label == lab][0])]
                         [lengths.append([e.straight_length for e in v.tot_edges if e.label == lab][0])]
                         data['Straight_Length'].append([e.straight_length for e in v.tot_edges if e.label == lab][0])
                         if edge_index == 0:
                             data['Change_in_length'].append(0)
                             data['Change_in_tension'].append(0)
+                            data['Topological_changes'].append(0)
                             data['Stochasticity_in_tension'].append(0)
+                            if ground_truth is not None:
+                                data['Ground_truth_stochasticity_in_tension'].append(0)
                             data['Strain_rate'].append(0)
                             data['Change_in_connected_edge_length'].append(0)
                             data['Binary_length_change'].append('Initial Length')
                             data['Binary_connected_length_change'].append('Initial Connected Edge Length')
                             edge_index += 1
                         else:
+                            # For topological changes
+                            # print(all_con_labels)
+                            cur_con_lab = all_con_labels[edge_index]
+                            old_con_lab = all_con_labels[edge_index - 1]
+                            # print(cur_con_lab)
+                            # print(old_con_lab)
+                            if set(cur_con_lab) != set(old_con_lab):
+                                print('Found')
+                                data['Topological_changes'].append(1)
+                            else:
+                                data['Topological_changes'].append(0)
+
+
                             data['Strain_rate'].append((lengths[edge_index] - lengths[edge_index - 1])/lengths[edge_index - 1])
                             data['Change_in_length'].append(lengths[edge_index] - lengths[edge_index - 1])
                             data['Change_in_tension'].append(tensions[edge_index] - tensions[edge_index - 1])
                             data['Stochasticity_in_tension'].append(norm_tensions[edge_index] - norm_tensions[edge_index - 1])
+                            if ground_truth is not None:
+                                data['Ground_truth_stochasticity_in_tension'].append(norm_ground_truths[edge_index] - norm_ground_truths[edge_index - 1])
                             data['Change_in_connected_edge_length'].append(con_lengths[edge_index] - con_lengths[edge_index - 1])
                             if lengths[edge_index] > lengths[edge_index - 1]:
                                 data['Binary_length_change'].append('Increasing Length')
@@ -4952,6 +5118,7 @@ class manual_tracing_multiple:
                         cell_data['Cell_Labels'].append(cell_lab)
                         cell_data['Index_Cell_Labels'].append(cell_lab)
                         cell_data['Pressures'].append([c.pressure for c in v.cells if c.label == cell_lab][0])
+                        cell_data['Ground_truth_pressure'].append([c.ground_truth_pressure for c in v.cells if c.label == cell_lab][0])
                         cell_data['Normalized_Pressures'].append(([c.pressure for c in v.cells if c.label == cell_lab][0] - min_pres)/float(max_pres - min_pres))
                         if cell_lab in common_cell_labels:
                             cell_data['Repeat_Pressures'].append([c.pressure for c in v.cells if c.label == cell_lab][0])
@@ -5226,6 +5393,8 @@ class surface_evolver:
         vertices = {'id': [], 'x': [], 'y': []}
         edges = {'id': [], 'v1': [], 'v2': [], 'tension' : []}
         faces = {'id': [], 'ed_id': []}
+        bodies = {'id': [], 'pressure': []}
+
         for j, num in enumerate(a):
             try:
                 if num[0].split()[0] ==  'vertices':
@@ -5308,6 +5477,12 @@ class surface_evolver:
 
                         else:
                             break
+
+                if num[0].split()[0] ==  'bodies':
+                    # print('bodies')
+                    for jj, vv in enumerate(a[j + 1:-1]):
+                        bodies['id'].append(vv[0].split()[0])
+                        bodies['pressure'].append(vv[0].split()[7])
             except:
                 pass
 
@@ -5317,10 +5492,15 @@ class surface_evolver:
         edges_data.set_index(['id'], inplace = True)
         faces_data = pd.DataFrame(faces)
         unique_faces = sorted(list(set((faces_data.id))), key = lambda x:int(x))
+        print(bodies)
+        if len(bodies['pressure']) != 0: 
+            bodies_data = pd.DataFrame(bodies)
+            bodies_data.set_index(['id'], inplace = True)
 
         # First loop through all face ids
         X, Y = [], []
-        all_ten = []
+        all_ten, all_pressures = [], []
+
         for face in unique_faces:
             x, y = [], []
             tensions = []
@@ -5360,13 +5540,19 @@ class surface_evolver:
             X.append(x)
             Y.append(y)
             all_ten.append(tensions)
+            if len(bodies['pressure']) != 0:
+                all_pressures.append(bodies_data.at[face, 'pressure'])
 
 
-        for a, b in zip(X, Y):    
-            a.pop(0)
-            b.pop(0)
+        # ADD BACK IF NEEDED, THIS IS IMPORTANT
+        # for a, b in zip(X, Y):    
+        #     a.pop(0)
+        #     b.pop(0)
 
         # Get face-face junction co-ordinates
+
+        for a in all_ten:
+            a.append(a[0])
 
         new_x, new_y, new_ten = [], [], []
 
@@ -5394,17 +5580,103 @@ class surface_evolver:
                         new_y.append(int_y)
                         new_ten.append(int_ten)
 
+        count = 0
+
+        for a, b in zip(new_x, new_y):
+
+            if a[0] == a[-1]:
+                
+        #         a.pop()
+        #         b.pop()
+        #         print('yes')
+        #         print(a)
+
+                c1 = sorted(a[0:-1])
+                c2 = sorted(a[0:-1], reverse = True)
+        #         print('yes')
+        #         print(c1)
+        #         print(a)
+        #         print(a[0:-1])
+        #         print(a[1:])
+                if c1 == a[0:-1] or c2 == a[0:-1]:
+        #             print('hmm1')
+                    a.pop()
+                    b.pop()
+                    new_ten[count].pop()
+                elif c1 == a[1:] or c2 == a[1:] :
+        #             print('hmm2')
+                    a.pop(0)
+                    b.pop(0)
+                    new_ten[count].pop(0)
+                else: 
+                    g1 = sorted(b[0:-1])
+                    g2 = sorted(b[0:-1], reverse = True)
+                    if g1 == b[0:-1] or g2 == b[0:-1]:
+        #                 print('hmm3')
+                        a.pop()
+                        b.pop()
+                        new_ten[count].pop()
+                    elif g1 == b[1:] or g2 == b[1:] :
+        #                 print('hmm4')
+                        a.pop(0)
+                        b.pop(0)
+                        new_ten[count].pop(0)
+                count += 1
+
+        # BEGIN HACKY BLOCK FOR NEW GEOMETRY, PLS REMOVE OTHERWISE
+        # temp = new_x[1][-1]
+        # new_x[1].pop()
+        # new_x[1] = [temp] + new_x[1]
+        # temp = new_y[1][-1]
+        # new_y[1].pop()
+        # new_y[1] = [temp] + new_y[1]
+        # END HACKY BLOCK FOR NEW GEOMETRY, PLS REMOVE OTHERWISE
+
         ex = manual_tracing(new_x, new_y, new_ten)
-        nodes, edges, new = ex.cleanup(0.01)
+        nodes, edges, new = ex.cleanup(0.5)
 
         print('Number of fit edges:',len(edges))
-        # cells = ex.find_all_cells(edges)
-        cells = ex.find_cycles(edges)
 
         mean_gt = np.mean([e.ground_truth for e in edges])
         for e in edges:
             e.ground_truth = e.ground_truth/mean_gt
-            
+        # cells = ex.find_all_cells(edges)
+        cells = ex.find_cycles(edges)
+
+        if len(bodies['pressure']) != 0:
+            C_X, C_Y = [], []
+            for c in cells:
+                c_x, c_y = [], []
+                for e in c.edges:
+                    c_x.append(e.co_ordinates[0])
+                    c_y.append(e.co_ordinates[1])
+                c_x = [item for sublist in c_x for item in sublist]
+                c_y = [item for sublist in c_y for item in sublist]
+                C_X.append(c_x)
+                C_Y.append(c_y)
+
+            c_presses = []
+            # print('cx',C_X)
+            # print('X',X)
+            for c in C_X:
+                count = 1
+                for a in X:
+                    if set(a) == set(c):
+                        c_presses.append(float(bodies_data.at[str(count), 'pressure']))
+                    count += 1
+
+            print('Length of cpresses',len(c_presses), len(cells))
+
+
+
+            mean_pres_c = np.mean(c_presses)
+            for j, c in enumerate(cells):
+                try:
+                    c.ground_truth_pressure = c_presses[j]/mean_pres_c - 1
+                    # c.ground_truth_pressure = c_presses[j]
+                except:
+                    c.ground_truth_pressure = np.NaN
+
         print('ground_truth', [e.ground_truth for e in edges])
         print('Number of cells:', len(cells))
 
@@ -5670,7 +5942,7 @@ class surface_evolver:
 
         # Get list of nodes and edges for names_now
         # No labelling
-
+        print(number_now)
         #name_now = 'ritvik_5pb_edges[3]_tension_' + str(number_now) + '.fe.txt'
         name_now = self.name_first + str(number_now) + self.name_end
 
@@ -5688,9 +5960,14 @@ class surface_evolver:
                 # Want to check that angles are similar
                 if py_ang(closest_new_node.tension_vectors[0], prev_node.tension_vectors[0]) < 15:
                     closest_new_node.label = prev_node.label
+                    closest_new_node.previous_label = prev_node.label
+
+                    closest_new_node.velocity_vector = np.array((closest_new_node.loc[0] - prev_node.loc[0],closest_new_node.loc[1] - prev_node.loc[1] ))
             else:
                 # If its connected to 3 edges, closest node is fine. only single edge nodes had problems 
                 closest_new_node.label = prev_node.label
+                closest_new_node.velocity_vector = np.array((closest_new_node.loc[0] - prev_node.loc[0],closest_new_node.loc[1] - prev_node.loc[1] ))
+            #print('Old label', prev_node.label, end = ' ')
 
 
         #testing
@@ -5702,14 +5979,18 @@ class surface_evolver:
         new_dictionary = defaultdict(list)
         total_now_edges = []
 
+        special_labels = []
+
         for node in now_nodes:
             if node.label != []:
                 if node.label < upper_limit + 1:
                     try:
+
                         old_edges_node = old_dictionary[node.label][0]
                         old_angles = old_dictionary[node.label][1]
                         temp_edges = []
                         new_vec = [func(p, node) for p in node.edges]
+
                         if len(old_angles) == len(node.edges):               
                             for old_e in old_angles:
                                 v1_v2_angs = [py_ang(old_e, nw) for nw in new_vec]
@@ -5737,18 +6018,25 @@ class surface_evolver:
                                     p.label = k.label
                         new_dictionary[node.label].append(temp_edges)
                         new_dictionary[node.label].append(new_vecs)
+
+                        if len([e.label for e in old_edges_node]) != len([e.label for e in node.edges]):
+                            special_labels.append(node.label)
+                            print('LOOK HERE')
+                            print('Node label', node.label, 'old edge labels', [e.label for e in old_edges_node], 'New edge labels', [e.label for e in node.edges], end = '  ')
                     except:
                         pass
 
 
         # New stuff
         if upper_limit < 1000:
-            count = 1000
+            #count = 1000
+            count = upper_limit + 1
         else:
             count = upper_limit + 1
 
         if upper_edge_limit < 1000:
-            count_edge = 1000
+            #count_edge = 1000
+            count_edge = upper_edge_limit + 1
         else:
             count_edge = upper_edge_limit + 1
 
@@ -5772,10 +6060,36 @@ class surface_evolver:
                 temp_edges = node.edges
                 new_vecs = [func(p, node) for p in temp_edges]
                 #print(temp_edges, new_vecs)
+                if len(new_dictionary[node.label]) != 0:
+                    new_dictionary[node.label].pop()
+                    new_dictionary[node.label].pop()
                 new_dictionary[node.label].append(temp_edges)
                 new_dictionary[node.label].append(new_vecs)
+            if node.label in special_labels:
+                print('Special label', node.label)
+                temp_edges = node.edges
+                new_vecs = [func(p, node) for p in temp_edges]
+                #print(temp_edges, new_vecs)
+                # print(temp_edges)
+                # print(new_vecs)
+                # print(new_dictionary[node.label][0])
+                # print(new_dictionary[node.label][1])
+                # print(new_dictionary)
+                new_dictionary[node.label].pop()
+                new_dictionary[node.label].pop()
+                new_dictionary[node.label].append(temp_edges)
+                new_dictionary[node.label].append(new_vecs)
+                print(new_dictionary[node.label][0])
+                print(new_dictionary[node.label][1])
+
+            # if node.label == 10:
+            #     print('Check node 10', [e.label for e in node.edges])
+            #     print(new_dictionary[node.label][0])
+            #     print(new_dictionary[node.label][1])
         # end of stuff
 
+        # for n in now_nodes:
+        #     print('New labels', n.label, end = ' ')
 
         set1 = set(old_dictionary)
         set2 = set(new_dictionary)
@@ -5926,19 +6240,39 @@ class surface_evolver:
             index = 0
 
         if numbers[index + 1] == numbers[index]:
-            colonies[str(index + 1)], new_dictionary = self.track_timestep(colonies[str(numbers[index])], old_dictionary, numbers[index + 1])
-            colonies[str(index + 1)].dictionary = new_dictionary
 
+
+            colonies[str(index + 1)], new_dictionary = self.track_timestep(colonies[str(index)], old_dictionary, numbers[index + 1])
+            colonies[str(index + 1)].dictionary = new_dictionary
+            # tensions, P_T, A = colonies[str(numbers[index+1])].calculate_tension(solver = solver, **kwargs)
             tensions, P_T, A = colonies[str(index+1)].calculate_tension(solver = solver, **kwargs)
             pressures, P_P, B = colonies[str(index+1)].calculate_pressure(solver = solver, **kwargs)
+            print(solver)
+            print(tensions)
+            # pressures, P_P, B = colonies[str(numbers[index+1])].calculate_pressure(solver = solver, **kwargs)
 
             # Save tension and pressure matrix
+            print(numbers[index+1])
+            # colonies[str(numbers[index+1])].tension_matrix = A
+            # colonies[str(numbers[index+1])].pressure_matrix = B
             colonies[str(index+1)].tension_matrix = A
             colonies[str(index+1)].pressure_matrix = B
+
+
+            # colonies[str(index + 1)], new_dictionary = self.track_timestep(colonies[str(numbers[index])], old_dictionary, numbers[index + 1])
+            # colonies[str(index + 1)].dictionary = new_dictionary
+
+            # tensions, P_T, A = colonies[str(index+1)].calculate_tension(solver = solver, **kwargs)
+            # pressures, P_P, B = colonies[str(index+1)].calculate_pressure(solver = solver, **kwargs)
+
+            # # Save tension and pressure matrix
+            # colonies[str(index+1)].tension_matrix = A
+            # colonies[str(index+1)].pressure_matrix = B
         else:
 
             # colonies[str(numbers[index + 1])], new_dictionary = self.track_timestep(colonies[str(numbers[index])], old_dictionary, numbers[index + 1])
             # colonies[str(numbers[index + 1])].dictionary = new_dictionary
+            print('Numbers of index + 1',numbers[index + 1])
             colonies[str(index + 1)], new_dictionary = self.track_timestep(colonies[str(index)], old_dictionary, numbers[index + 1])
             colonies[str(index + 1)].dictionary = new_dictionary
             # tensions, P_T, A = colonies[str(numbers[index+1])].calculate_tension(solver = solver, **kwargs)
