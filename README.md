@@ -24,6 +24,7 @@ The project has the following structure:
       |- setup.py
       |- CHANGES.txt
       |- Manifest.in
+      |- requirements.txt
       |- LICENSE
 
 ## System Requirements
