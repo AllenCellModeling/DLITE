@@ -23,7 +23,8 @@ The project has the following structure:
             |- ...
       |- setup.py
       |- CHANGES.txt
-      |- Manifest.in
+      |- MANIFEST.in
+      |- .gitignore
       |- requirements.txt
       |- LICENSE
 
