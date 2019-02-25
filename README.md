@@ -39,13 +39,6 @@ python3 -m venv DLITE-env
 source DLITE-env/bin/activate
 ```
 
-- Try executing the test script:
-```shell
-./scripts/test_run.sh
-```
-
-The installation was successful if the script executes without errors.
-
 ## Data
 Data is available as txt files (/Notebooks/data). 
 
