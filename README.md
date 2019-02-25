@@ -23,6 +23,7 @@ The project has the following structure:
             |- ...
       |- setup.py
       |- CHANGES.txt
+      |- Manifest.in
       |- LICENSE
 
 ## System Requirements
