@@ -3,6 +3,28 @@ Estimation dynamic cell-cell forces from colony time-series.
 
 ![fig7_2col](https://user-images.githubusercontent.com/40371793/53372871-d0f8d200-3908-11e9-93f0-b006af0a4cb0.jpg)
 
+### Organization of the  project
+
+The project has the following structure:
+
+    DLITE/
+      |- README.md
+      |- cell_soap/
+         |- __init__.py
+         |- cell_describe.py
+         |- AICS_data.py
+         |- ManualTracing.py
+         |- ManualTracingMutliple.py
+         |- SurfaceEvolver.py
+      |- Notebooks/
+         |- Demo_notebook_SurfaceEvolver.ipynb
+         |- Demo_notebook_ZO-1.ipynb
+         |- data/
+            |- ...
+      |- setup.py
+      |- CHANGES.txt
+      |- LICENSE
+
 ## System Requirements
 
 ## Installation
