@@ -48,13 +48,31 @@ python install setup.py
 ```
 
 ## Data
-Data is available as txt files (/Notebooks/data). 
+
 
 ## Predict tensions in Surface Evolver data
-Run demo_notebook_SurfaceEvolver.ipynb
+
+- Data is available as txt files (/Notebooks/data/voronoi_very_small_44_edges_tension_edges_20_30_1.0.fe.txt):
+```shell
+cd Notebooks
+```
+
+- Run demo notebook :
+```shell
+jupyter notebook demo_notebook_SurfaceEvolver.ipynb
+```
 
 ## Predict tensions in ZO-1 data
-Run demo_notebook_ZO-1.ipynb
+
+- Data is available as txt files (/Notebooks/data/MAX_20170123_I01_003-Scene-4-P4-split_T0.ome.txt):
+```shell
+cd Notebooks
+```
+
+- Run demo notebook :
+```shell
+jupyter notebook demo_notebook_ZO-1.ipynb
+```
 
 ## Contact
 C. Dave Williams 
