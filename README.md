@@ -28,8 +28,6 @@ The project has the following structure:
       |- requirements.txt
       |- LICENSE
 
-## System Requirements
-
 ## Installation
 ### Environment setup
 - Create a virtual environment:
@@ -46,9 +44,6 @@ source DLITE-env/bin/activate
 ```shell
 python install setup.py
 ```
-
-## Data
-
 
 ## Predict tensions in Surface Evolver data
 
