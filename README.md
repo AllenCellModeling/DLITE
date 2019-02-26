@@ -42,6 +42,11 @@ python3 -m venv DLITE-env
 source DLITE-env/bin/activate
 ```
 
+- Install requirements:
+```shell
+python install setup.py
+```
+
 ## Data
 Data is available as txt files (/Notebooks/data). 
 
