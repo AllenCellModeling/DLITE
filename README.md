@@ -42,7 +42,7 @@ source DLITE-env/bin/activate
 
 - Install requirements:
 ```shell
-python install setup.py
+python setup.py install
 ```
 
 ## Predict tensions in Surface Evolver data
