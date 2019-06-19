@@ -32,13 +32,13 @@ You can either clone the public repository:
 
 .. code-block:: console
 
-    $ git clone git://github.com/ritvikvasan/DLITE
+    $ git clone git://github.com/AllenCellModeling/DLITE
 
 Or download the `tarball`_:
 
 .. code-block:: console
 
-    $ curl  -OL https://github.com/ritvikvasan/DLITE/tarball/master
+    $ curl  -OL https://github.com/AllenCellModeling/DLITE/tarball/master
 
 Once you have a copy of the source, you can install it with:
 
@@ -47,5 +47,5 @@ Once you have a copy of the source, you can install it with:
     $ python setup.py install
 
 
-.. _Github repo: https://github.com/ritvikvasan/DLITE
-.. _tarball: https://github.com/ritvikvasan/DLITE/tarball/master
+.. _Github repo: https://github.com/AllenCellModeling/DLITE
+.. _tarball: https://github.com/AllenCellModeling/DLITE/tarball/master
