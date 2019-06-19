@@ -19,7 +19,7 @@ test_requirements = [
     'pytest-raises',
 ]
 
-setup_requirements = ['pytest-runner', ]
+setup_requirements = ['pytest-runner']
 
 dev_requirements = [
     'bumpversion>=0.5.3',
@@ -70,11 +70,6 @@ setup(
         'Programming Language :: Python :: 3.7',
     ],
     description="A dynamic force-inference model to estimate tensions in colony time-series",
-    entry_points={
-        'console_scripts': [
-            'my_example=DLITE.bin.my_example:main'
-        ],
-    },
     install_requires=requirements,
     license="Allen Institute Software License",
     long_description=readme + '\n\n' + history,
@@ -84,10 +79,10 @@ setup(
     packages=find_packages(),
     python_requires=">=3.6",
     setup_requires=setup_requirements,
-    test_suite='DLITE/tests',
+    test_suite='tests',
     tests_require=test_requirements,
     extras_require=extra_requirements,
-    url='https://github.com/ritvikvasan/DLITE',
+    url='https://github.com/AllenCellModeling/DLITE',
     version='0.1.0',
     zip_safe=False,
 )

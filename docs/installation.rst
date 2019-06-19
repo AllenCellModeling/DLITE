@@ -8,7 +8,7 @@ Installation
 Stable release
 --------------
 
-To install force_inference_DLITE, run this command in your terminal:
+To install DLITE, run this command in your terminal:
 
 .. code-block:: console
 
