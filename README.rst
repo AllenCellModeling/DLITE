@@ -47,7 +47,7 @@ Run demo notebook :
 
 .. code-block:: bash
 
-    $ (env)>jupyter notebook demo_notebook_SurfaceEvolver.ipynb
+    $ (env)> jupyter notebook demo_notebook_SurfaceEvolver.ipynb
 
 | Predict tensions in ZO-1 data
 
