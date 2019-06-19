@@ -7,16 +7,16 @@ DLITE
         :target: https://pypi.python.org/pypi/DLITE
         :alt: Release Status
 
-.. image:: https://travis-ci.com/ritvikvasan/DLITE.svg?branch=master
-        :target: https://travis-ci.com/ritvikvasan/DLITE
+.. image:: https://travis-ci.com/AllenCellModeling/DLITE.svg?branch=master
+        :target: https://travis-ci.com/AllenCellModeling/DLITE
         :alt: Build Status
 
 .. image:: https://readthedocs.org/projects/DLITE/badge/?version=latest
         :target: https://DLITE.readthedocs.io/en/latest
         :alt: Documentation Status
 
-.. image:: https://codecov.io/gh/ritvikvasan/DLITE/branch/master/graph/badge.svg
-        :target: https://codecov.io/gh/ritvikvasan/DLITE
+.. image:: https://codecov.io/gh/AllenCellModeling/DLITE/branch/master/graph/badge.svg
+        :target: https://codecov.io/gh/AllenCellModeling/DLITE
         :alt: Codecov Status
 
 
