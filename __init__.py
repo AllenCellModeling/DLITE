@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-"""Top-level package for force_inference_DLITE."""
+"""Top-level package for DLITE."""
 
 __author__ = 'Ritvik Vasan'
 __email__ = 'rvasan@eng.ucsd.edu'

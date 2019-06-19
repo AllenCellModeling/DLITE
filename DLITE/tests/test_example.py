@@ -9,16 +9,10 @@
 Test the tract space and tracts. 
 
 """
+from DLITE.cell_describe import node, edge, cell, colony
+from DLITE.ManualTracingMultiple import ManualTracingMultiple
+from DLITE.SurfaceEvolver import SurfaceEvolver
 
-
-
-import DLITE.cell_describe as cell_describe
-import DLITE.ManualTracingMultiple as ManualTracingMultiple
-import DLITE.SurfaceEvolver as SurfaceEvolver
-
-from cell_describe import node, edge, cell, colony
-from ManualTracingMultiple import ManualTracingMultiple
-from SurfaceEvolver import SurfaceEvolver
 
 os.chdir(r'/data')
 timepoints = [int(i)/10 for i in np.linspace(10, 1, 9)]
