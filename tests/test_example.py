@@ -15,7 +15,7 @@ from DLITE.ManualTracingMultiple import ManualTracingMultiple
 from DLITE.SurfaceEvolver import SurfaceEvolver
 
 
-os.chdir(r'/data')
+os.chdir(r'./data')
 timepoints = [int(i)/10 for i in np.linspace(10, 1, 9)]
 name_first = 'voronoi_very_small_tension_edges_20_30_'
 name_end = '.fe.txt'
