@@ -39,6 +39,7 @@ Features
 
 * Data is available as txt files (/Notebooks/data/voronoi_very_small_44_edges_tension_edges_20_30_1.0.fe.txt):
 
+
 .. code-block:: bash
 
     $ (env)> cd Notebooks
@@ -53,6 +54,7 @@ Features
 
 
 * Data is available as txt files (/Notebooks/data/MAX_20170123_I01_003-Scene-4-P4-split_T0.ome.txt):
+
 
 .. code-block:: bash
 
