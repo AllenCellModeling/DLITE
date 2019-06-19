@@ -9,9 +9,10 @@
 Test the tract space and tracts. 
 
 """
-from DLITE.cell_describe import node, edge, cell, colony
-from DLITE.ManualTracingMultiple import ManualTracingMultiple
-from DLITE.SurfaceEvolver import SurfaceEvolver
+from DLITE import cell_describe 
+from cell_describe import node, edge, cell, colony
+from DLITE import ManualTracingMultiple
+from DLITE import SurfaceEvolver
 
 
 os.chdir(r'/data')
