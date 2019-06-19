@@ -33,13 +33,6 @@ of cell-cell forces in time-lapse images of a cell monolayer
 
 Features
 --------
-| Installing via pip:
-
-Check the `pytesseract package page <https://pypi.python.org/pypi/pytesseract>`_ for more information.
-
-
-
-    $ (env)> pip install pytesseract
 
 | Predict tensions in Surface Evolver data
 
@@ -47,11 +40,13 @@ Check the `pytesseract package page <https://pypi.python.org/pypi/pytesseract>`_
 Data is available as txt files (/Notebooks/data/voronoi_very_small_44_edges_tension_edges_20_30_1.0.fe.txt):
 
 .. code-block:: bash
+
     $ (env)> cd Notebooks
 
 Run demo notebook :
 
 .. code-block:: bash
+
     $ (env)>jupyter notebook demo_notebook_SurfaceEvolver.ipynb
 
 | Predict tensions in ZO-1 data
@@ -59,11 +54,13 @@ Run demo notebook :
 - Data is available as txt files (/Notebooks/data/MAX_20170123_I01_003-Scene-4-P4-split_T0.ome.txt):
 
 .. code-block:: bash
+
     $ (env)> cd Notebooks
 
 Run demo notebook :
 
 .. code-block:: bash
+
     $ (env)> jupyter notebook demo_notebook_ZO-1.ipynb
 
 
