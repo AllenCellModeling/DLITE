@@ -1,7 +1,7 @@
 import numpy as np
 from scipy import ndimage, optimize
 import collections
-from cell_describe import node, edge, colony
+from .cell_describe import node, edge, colony
 
 
 class data:

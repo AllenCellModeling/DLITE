@@ -10,8 +10,8 @@ import matplotlib.patches as mpatches
 from collections import defaultdict
 import pylab
 import pandas as pd
-from cell_describe import colony
-from ManualTracing import ManualTracing
+from .cell_describe import colony
+from .ManualTracing import ManualTracing
 
 
 class ManualTracingMultiple:

@@ -3,8 +3,8 @@ import numpy.linalg as la
 import collections
 from collections import defaultdict
 import pandas as pd
-from cell_describe import colony
-from ManualTracing import ManualTracing
+from .cell_describe import colony
+from .ManualTracing import ManualTracing
 
 
 class SurfaceEvolver:
