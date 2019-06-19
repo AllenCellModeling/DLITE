@@ -37,13 +37,13 @@ Features
 | Predict tensions in Surface Evolver data
 
 
-Data is available as txt files (/Notebooks/data/voronoi_very_small_44_edges_tension_edges_20_30_1.0.fe.txt):
+* Data is available as txt files (/Notebooks/data/voronoi_very_small_44_edges_tension_edges_20_30_1.0.fe.txt):
 
 .. code-block:: bash
 
     $ (env)> cd Notebooks
 
-Run demo notebook :
+* Run demo notebook :
 
 .. code-block:: bash
 
@@ -51,13 +51,14 @@ Run demo notebook :
 
 | Predict tensions in ZO-1 data
 
-- Data is available as txt files (/Notebooks/data/MAX_20170123_I01_003-Scene-4-P4-split_T0.ome.txt):
+
+* Data is available as txt files (/Notebooks/data/MAX_20170123_I01_003-Scene-4-P4-split_T0.ome.txt):
 
 .. code-block:: bash
 
     $ (env)> cd Notebooks
 
-Run demo notebook :
+* Run demo notebook :
 
 .. code-block:: bash
 
