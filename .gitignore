@@ -7,6 +7,7 @@ __pycache__/
 *.so
 
 # Distribution / packaging
+env/
 .Python
 build/
 develop-eggs/
@@ -24,6 +25,9 @@ wheels/
 .installed.cfg
 *.egg
 MANIFEST
+
+# OS generated files
+.DS_Store
 
 # PyInstaller
 #  Usually these files are written by a python script from a template
@@ -102,7 +106,3 @@ venv.bak/
 
 # mypy
 .mypy_cache/
-
-# Mac 
-.DS_Store
-**/.DS_Store
