@@ -8,7 +8,7 @@ DLITE
         :alt: Build Status
 
 .. image:: https://readthedocs.org/projects/DLITE/badge/?version=latest
-        :target: https://DLITE.readthedocs.io/en/latest
+        :target: https://DLITE.readthedocs.io/en/latest/?badge=latest
         :alt: Documentation Status
 
 .. image:: https://codecov.io/gh/AllenCellModeling/DLITE/branch/master/graph/badge.svg
