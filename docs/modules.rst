@@ -1,5 +1,5 @@
 DLITE
-============
+=====
 
 .. toctree::
    :maxdepth: 4
