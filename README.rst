@@ -3,10 +3,6 @@ DLITE
 =====================
 
 
-.. image:: https://img.shields.io/pypi/v/DLITE.svg
-        :target: https://pypi.python.org/pypi/DLITE
-        :alt: Release Status
-
 .. image:: https://travis-ci.com/AllenCellModeling/DLITE.svg?branch=master
         :target: https://travis-ci.com/AllenCellModeling/DLITE
         :alt: Build Status
