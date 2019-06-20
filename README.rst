@@ -12,8 +12,8 @@ DLITE
         :alt: Documentation Status
 
 .. image:: https://codecov.io/gh/AllenCellModeling/DLITE/branch/master/graph/badge.svg
-        :target: https://codecov.io/gh/AllenCellModeling/DLITE
-        :alt: Codecov Status
+  :target: https://codecov.io/gh/AllenCellModeling/DLITE
+  :alt: Codecov Status
 
 
 Dynamic Local Intercellular Tension Estimation
