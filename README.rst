@@ -11,7 +11,7 @@ DLITE
         :target: https://DLITE.readthedocs.io/en/latest/?badge=latest
         :alt: Documentation Status
 
-.. image:: [![codecov](https://codecov.io/gh/AllenCellModeling/DLITE/branch/master/graph/badge.svg)](https://codecov.io/gh/AllenCellModeling/DLITE)
+.. image:: https://codecov.io/gh/AllenCellModeling/DLITE/branch/master/graph/badge.svg
         :target: https://codecov.io/gh/AllenCellModeling/DLITE
         :alt: Codecov Status
 
