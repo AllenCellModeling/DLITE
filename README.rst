@@ -7,7 +7,7 @@ DLITE
         :target: https://travis-ci.com/AllenCellModeling/DLITE
         :alt: Build Status
 
-.. image:: https://readthedocs.org/projects/DLITE/badge/?version=latest
+.. image:: https://readthedocs.org/projects/dlite/badge/?version=latest
         :target: https://DLITE.readthedocs.io/en/latest/?badge=latest
         :alt: Documentation Status
 
