@@ -40,6 +40,7 @@ interactive_requirements = [
     'altair',
     'jupyterlab',
     'matplotlib',
+    'networkx',
 ]
 
 with open('requirements.txt', 'r') as f:
