@@ -25,12 +25,6 @@ of cell-cell forces in time-lapse images of a cell monolayer
    :scale: 100 %
    :align: center
    
-.. image:: https://user-images.githubusercontent.com/40371793/61190357-cdfc4500-a64f-11e9-9425-88f2c31c33f3.png>
-   :height: 200px
-   :width: 600px
-   :scale: 100 %
-   :align: center
-   
 * Free software: Allen Institute Software License
 
 * Documentation: https://DLITE.readthedocs.io.
