@@ -21,7 +21,7 @@ of cell-cell forces in time-lapse images of a cell monolayer
    
 .. image:: https://user-images.githubusercontent.com/40371793/61190376-3f3bf800-a650-11e9-9e8f-51235200aca4.jpg
    :height: 300px
-   :width: 800px
+   :width: 750px
    :scale: 100 %
    :align: center
   
