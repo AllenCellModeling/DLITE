@@ -12,3 +12,4 @@ $$x_{1,2} = \frac{-b \pm \sqrt{b^2-4ac}}{2b}.$$
 SE = \frac{\sigma}{\sqrt{n}}
 ```
 ![img](https://latex.codecogs.com/gif.latex?\sum_{i=1}^{e_{n}}&space;n_{i}&space;=&space;\sum_{i=1}^{e_{n}}&space;t_{i}v_{i})
+$\alpha$
