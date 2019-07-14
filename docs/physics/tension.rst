@@ -7,5 +7,5 @@ The model assumes that any given image of a cell colony is quasi-static. This me
 .. image:: https://user-images.githubusercontent.com/40371793/61190807-02bfca80-a657-11e9-8113-994576e65efd.jpg
    :height: 4px
    :width: 4px
-   :scale: 10 %
+   :scale: 50 %
    :align: center
