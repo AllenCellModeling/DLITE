@@ -6,10 +6,4 @@ The model assumes that any given image of a cell colony is quasi-static. This me
 
 * n<sub>&residual;</sub>(x) = :math:`$\sum_{i} t_{i}v_{i}$` 
 
-$$x_{1,2} = \frac{-b \pm \sqrt{b^2-4ac}}{2b}.$$
-
-```math
-SE = \frac{\sigma}{\sqrt{n}}
-```
-![img](https://latex.codecogs.com/gif.latex?\sum_{i=1}^{e_{n}}&space;n_{i}&space;=&space;\sum_{i=1}^{e_{n}}&space;t_{i}v_{i})
-$\alpha$
+*E*~0~=*mc*^2^.
