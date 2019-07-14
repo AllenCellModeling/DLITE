@@ -11,4 +11,4 @@ $$x_{1,2} = \frac{-b \pm \sqrt{b^2-4ac}}{2b}.$$
 ```math
 SE = \frac{\sigma}{\sqrt{n}}
 ```
-<img src="http://www.sciweavers.org/tex2img.php?eq=%5Csum_%7Bi%3D1%7D%5E%7Be_%7Bn%7D%7D%20n_%7Bi%7D%20%3D%20%5Csum_%7Bi%3D1%7D%5E%7Be_%7Bn%7D%7D%20t_%7Bi%7Dv_%7Bi%7D%0A%20&bc=White&fc=Black&im=jpg&fs=12&ff=arev&edit=0" align="center" border="0" alt="\sum_{i=1}^{e_{n}} n_{i} = \sum_{i=1}^{e_{n}} t_{i}v_{i} " width="118" height="51" />
+[img]http://www.sciweavers.org/tex2img.php?eq=%5Csum_%7Bi%3D1%7D%5E%7Be_%7Bn%7D%7D%20n_%7Bi%7D%20%3D%20%5Csum_%7Bi%3D1%7D%5E%7Be_%7Bn%7D%7D%20t_%7Bi%7Dv_%7Bi%7D%0A%20&bc=White&fc=Black&im=jpg&fs=12&ff=arev&edit=0[/img]
