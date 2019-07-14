@@ -7,6 +7,7 @@ Welcome to DLITE's documentation!
 
    installation
    usage
+   physics
    modules
    contributing
    authors
