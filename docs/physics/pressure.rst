@@ -1,5 +1,5 @@
 =================
-The physics of pressure balance
+Pressure balance
 =================
 
 Given that the colony is quasi-static, we can perform a pressure balance across every edge in the colony. This pressure balance can be written as:
