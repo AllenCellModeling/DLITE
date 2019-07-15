@@ -36,7 +36,8 @@ import sphinx_rtd_theme
 extensions = [
     'sphinx.ext.autodoc',
     'sphinx.ext.viewcode',
-    'sphinx.ext.napoleon'
+    'sphinx.ext.napoleon',
+     "sphinx.ext.mathjax",
 ]
 
 # Control napoleon
