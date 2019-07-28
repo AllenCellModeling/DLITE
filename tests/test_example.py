@@ -4,7 +4,7 @@
 from DLITE.cell_describe import node, edge, cell, colony
 from DLITE.ManualTracingMultiple import ManualTracingMultiple
 from DLITE.SurfaceEvolver import SurfaceEvolver
-from DLITE.PlottinfFunctions import PlottingFunctions
+from DLITE.PlottingFunctions import PlottingFunctions
 from DLITE.Lloyd_relaxation_class import Atlas
 from DLITE.SaveSurfEvolFile import SaveFile
 import os
