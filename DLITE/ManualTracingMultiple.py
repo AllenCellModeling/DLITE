@@ -23,6 +23,7 @@ class ManualTracingMultiple:
         of the files labeled as -
         'MAX_20170123_I01_003-Scene-4-P4-split_T0.ome.txt'
                                                 ^ this number changes - 0,1,2,3,..30
+        These files are labelled as 'name_first' + 'name_end'
         """
 
         if not type:

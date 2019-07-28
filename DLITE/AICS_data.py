@@ -14,6 +14,8 @@ class data:
         v is data structure obtained after loading the pickle file
         t is time step
         ---------
+        This class has an add_node, add_edge and fit method that are called 
+        by other classes
         """
         self.v = v
         self.t = t
