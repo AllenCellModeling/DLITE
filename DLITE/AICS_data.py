@@ -88,7 +88,7 @@ class data:
 
         # we want to fit a curve to this. Use least squares fitting.
         # output is radius and x,y co-ordinates of the centre of circle
-        radius, xc, yc = self.fit(x, y)
+        radius, xc, yc, residu_2 = self.fit(x, y)
 
         # Check the direction of the curve. Do this by performing cross product
         x1, y1, x2, y2 = x[0], y[0], x[-1], y[-1]
@@ -124,6 +124,7 @@ class data:
             ed = edge(node_a, node_b, None, None, None, x, y)
 
         ed.center_of_circle = [xc, yc]
+        ed.curve_fit_residual = residu_2
 
         return ed
 
@@ -159,7 +160,7 @@ class data:
         theta1 = np.rad2deg(np.arctan2(y[np.argmax(x)] - yc_2, x[np.argmax(x)] - xc_2))  # starting angle
         theta2 = np.rad2deg(np.arctan2(y[np.argmin(x)] - yc_2, x[np.argmin(x)] - xc_2))
 
-        return r_2, xc_2, yc_2
+        return r_2, xc_2, yc_2, residu_2
 
     def post_processing(self, cutoff, num=None):
         """
