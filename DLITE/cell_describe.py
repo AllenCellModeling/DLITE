@@ -11,9 +11,7 @@ import random
 
 class node:
     def __init__(self, loc):
-        """
-        loc is the (x,y) location of the node
-        """
+        """loc is the (x,y) location of the node"""
         self.loc = loc
         self._edges = []
         self._tension_vectors = []
@@ -29,31 +27,23 @@ class node:
 
     @property
     def x(self):
-        """
-        x co-ordinate of node
-        """
+        """x co-ordinate of node"""
         return self.loc[0]
 
     @property
     def y(self):
-        """
-        y co-ordinate of node
-        """
+        """y co-ordinate of node"""
         return self.loc[1]
     
     @property
     def edges(self):
-        """
-        List of edges connected to this node
-        """
+        """List of edges connected to this node"""
 
         return self._edges
 
     @edges.setter
     def edges(self, edge):
-        """
-        Sets list of edges -- make sure no repeat edges
-        """
+        """Sets list of edges -- make sure no repeat edges"""
         if edge not in self._edges:
             self._edges.append(edge)
 
@@ -126,7 +116,7 @@ class node:
         self._label = label
 
     @property
-    def previous_label(self):
+    def previous_label(self): 
         """ Label of this node at previous time point """
         return self._previous_label
 
@@ -260,6 +250,14 @@ class edge:
     @cell_coefficients.setter
     def cell_coefficients(self, coeff):
         self._cell_coefficients = coeff
+
+    @property
+    def curve_fit_residual(self):
+        return self._curve_fit_residual
+
+    @curve_fit_residual.setter
+    def curve_fit_residual(self, residual):
+        self._curve_fit_residual = residual
 
     @property
     def cell_rhs(self):
@@ -917,6 +915,7 @@ class colony:
             if 'Matrix is singular' in str(err):
                 return None, p
             else:
+                print('Couldnt invert matrix')
                 raise
 
         return x[0:n][:, 0], p  # use this if solved using linalg.solve
@@ -1081,6 +1080,8 @@ class colony:
                     for k, xxx in enumerate(x0):
                         x0[k] = random.randint(0, 101)/100
 
+                    print('guess is', x0)
+
                     # minimizer_kwargs = {"method": "L-BFGS-B", "bounds": bnds} # used only BFGS and no bounds before
                     # sol = basinhopping(self.objective_function_tension, x0, T=0.5, interval=10,
                     #                    minimizer_kwargs=minimizer_kwargs, niter=100, stepsize=0.05, disp=True)
@@ -1094,7 +1095,9 @@ class colony:
                 else:
                     # Can choose to always have a random initial guess
                     # for k, xxx in enumerate(x0):
-                    #     x0[k] = random.randint(0,101)/100
+                    #     x0[k] = random.randint(0,1001)/1000
+
+                    print('guess is', x0)
 
                     # Run L-BFGS
                     sol = minimize(self.objective_function_tension, x0, method='L-BFGS-B',
@@ -1123,7 +1126,8 @@ class colony:
                     # minimizer_kwargs = {"method": "L-BFGS-B", "bounds" : bnds}
                     # sol = basinhopping(self.objective_function_pressure, x0,
                     #                    minimizer_kwargs=minimizer_kwargs, niter=50, disp=True)
-
+                    print('all same')
+                    print('guess pressure is', x0)
                     # Or, run L-BFGSB
                     sol = minimize(self.objective_function_pressure,
                                    x0, method='L-BFGS-B', bounds=bnds, options={**kwargs})
@@ -1143,12 +1147,19 @@ class colony:
 
                         # Or, run SLSQP
                         # sol = minimize(self.objective_function_pressure, x0, method='SLSQP', constraints=cons)
-
+                        print('second')
+                        print('guess pressure is', x0)
                         # Or, run L-BFGSB
                         sol = minimize(self.objective_function_pressure, x0, method='L-BFGS-B',
                                        bounds=bnds, options={**kwargs})
                     else:
                         # Run L-BFGSB
+                        print('else')
+                        print('new objective')
+                        print('guess pressure is', x0)
+                        # for k, xxx in enumerate(x0):
+                        #     x0[k] = random.randint(0,101)/10000
+
                         sol = minimize(self.objective_function_pressure, x0,
                                        method='L-BFGS-B', bounds=bnds, options={**kwargs})
 
@@ -1329,6 +1340,7 @@ class colony:
                     edge_pressure_lhs = edge_pressure_lhs + cell_values[i]*x[cell_indices[i]]
 
                 objective = objective + (edge_pressure_lhs - cell_rhs)**2
+                #objective = objective + (edge_pressure_lhs - cell_rhs)**2 
 
         return objective 
 
@@ -1475,6 +1487,11 @@ class colony:
         if solver == 'KKT' or solver == 'CellFIT':
             pressures, p = self.solve_constrained_lsq(a_mat, 1, rhs)
 
+            if pressures is None:
+                pressures = []
+                for c in self.cells:
+                    pressures.append(1)
+
         # New solver
         cells = self.cells
 
@@ -1487,9 +1504,9 @@ class colony:
             for j, c in enumerate(self.cells):
                 c.pressure = pressures[j]
         else:
-            mean_pres = np.mean(pressures)
+            # min_pres = np.min(pressures)
             for j, c in enumerate(self.cells):
-                c.pressure = pressures[j]/mean_pres - 1
+                c.pressure = pressures[j]
             # cell.pressure = pressures[j]
 
         return pressures, p, a_mat
@@ -1536,17 +1553,18 @@ class colony:
             cl = plt.colorbar(sm, cax=cbaxes)
             cl.set_label('Normalized tension', fontsize=13, labelpad=-60)
 
-    def plot_pressures(self, ax, fig, pressures, min_pres=None, max_pres=None, specify_color=None, **kwargs):
+    def plot_pressures(self, ax, fig, pressures, min_x=None, max_x=None, min_y=None, max_y=None,
+                        min_pres=None, max_pres=None, specify_color=None, cbar='yes', **kwargs):
         """
         Plot normalized pressures (mean, std) with colorbar 
         """
-        ax.set(xlim=[0, 1030], ylim=[0, 1030], aspect=1)
+        ax.set(xlim=[min_x, max_x], ylim=[min_y, max_y], aspect=1)
 
         def norm2(pressures, min_pres=None, max_pres=None):
             if not min_pres and not max_pres:
-                return (pressures - min(pressures)) / float(max(pressures) - min(pressures))
+                return [(p - min(pressures)) / float(max(pressures) - min(pressures)) for p in pressures]
             else:
-                return (pressures - min_pres) / float(max_pres - min_pres)
+                return [(p - min_pres) / float(max_pres - min_pres) for p in pressures]
 
         c2 = norm2(pressures, min_pres, max_pres)
 
@@ -1571,10 +1589,10 @@ class colony:
             sm = plt.cm.ScalarMappable(cmap=cm.viridis, norm=plt.Normalize(vmin=-1, vmax=1))
         # fake up the array of the scalar mappable. 
         sm._A = []
-
-        cbaxes = fig.add_axes([0.8, 0.1, 0.03, 0.8])
-        cl = plt.colorbar(sm, cax=cbaxes)
-        cl.set_label('Normalized pressure', fontsize=13, labelpad=10)
+        if cbar == 'yes':
+            cbaxes = fig.add_axes([0.8, 0.1, 0.03, 0.8])
+            cl = plt.colorbar(sm, cax=cbaxes)
+            cl.set_label('Normalized pressure', fontsize=13, labelpad=10)
 
     def plot(self, ax, fig, tensions, pressures, min_ten=None,
              max_ten=None, min_pres=None, max_pres=None,

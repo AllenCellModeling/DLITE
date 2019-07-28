@@ -23,7 +23,6 @@ class ManualTracingMultiple:
         of the files labeled as -
         'MAX_20170123_I01_003-Scene-4-P4-split_T0.ome.txt'
                                                 ^ this number changes - 0,1,2,3,..30
-        These files are labelled as 'name_first' + 'name_end'
         """
 
         if not type:
@@ -274,12 +273,12 @@ class ManualTracingMultiple:
 
         for node in now_nodes:
             check = 0
-            if not node.label:
+            if not node.label and node.label != 0:
                 node.label = count
                 count += 1
                 check = 1
             for e in node.edges:
-                if not e.label:
+                if not e.label and e.label != 0:
                     e.label = count_edge
                     count_edge += 1
                     check = 1
@@ -342,7 +341,7 @@ class ManualTracingMultiple:
             count = 1000
 
         for j, cc in enumerate(now_cells):
-            if not cc.label:
+            if not cc.label and cc.label != 0:
                 now_cells[j].label = count
                 count += 1
         return now_cells
@@ -764,7 +763,9 @@ class ManualTracingMultiple:
         for j, i in enumerate(frames):
             try:
                 edd = [e for e in colonies[str(i)].tot_edges if e.label == edge_label][0]
-                tensions.append(edd.tension)
+                all_tensions_frame = [e.tension for e in colonies[str(i)].tot_edges]
+                mean_tens = np.mean(all_tensions_frame)
+                tensions.append(edd.tension/mean_tens)
                 radii.append(edd.radius)
                 length.append(edd.straight_length)
                 if j > 0:
@@ -773,19 +774,19 @@ class ManualTracingMultiple:
                 frames = frames[0:j]
 
         ax1.plot(frames, tensions, lw=3, color='black')
-        ax1.set_ylabel('Tension', color='black')
-        ax1.set_xlabel('Frames')
+        ax1.set_ylabel('Tension', color='black', fontsize=18)
+        ax1.set_xlabel('Frames', fontsize=18)
         ax2 = ax1.twinx()
         ax2.plot(frames, radii, 'blue')
-        ax2.set_ylabel('Radius', color='blue')
+        ax2.set_ylabel('Radius', color='blue', fontsize=18)
         ax2.tick_params('y', colors='blue')
 
         ax3.plot(frames, length, lw=3, color='black')
-        ax3.set_ylabel('Length', color='black')
-        ax3.set_xlabel('Frames')
+        ax3.set_ylabel('Length', color='black', fontsize=18)
+        ax3.set_xlabel('Frames', fontsize=18)
         ax4 = ax3.twinx()
         ax4.plot(frames, change_in_length, 'blue')
-        ax4.set_ylabel('Change in length', color='blue')
+        ax4.set_ylabel('Change in length', color='blue', fontsize=18)
         ax4.tick_params('y', colors='blue')
 
         for j, i in enumerate(frames):
@@ -803,7 +804,9 @@ class ManualTracingMultiple:
             [current_edge.plot(ax, lw=3, color='red')]
 
             fname = '_tmp%05d.png' % int(j)
-            ax1.plot(i, current_edge.tension, 'ok', color='red')
+            mean_tens = np.mean([e.tension for e in edges])
+            this_tension = current_edge.tension/mean_tens
+            ax1.plot(i, this_tension, 'ok', color='red')
             ax2.plot(i, current_edge.radius, 'ok', color='red')
             ax3.plot(i, current_edge.straight_length, 'ok', color='red')
             ax4.plot(i, change_in_length[j], 'ok', color='red')
@@ -815,19 +818,19 @@ class ManualTracingMultiple:
             plt.close()
             fig, (ax, ax1, ax3) = plt.subplots(3, 1, figsize=(5.5, 15))
             ax1.plot(frames, tensions, lw=3, color='black')
-            ax1.set_ylabel('Tension', color='black')
-            ax1.set_xlabel('Frames')
+            ax1.set_ylabel('Tension', color='black', fontsize=18)
+            ax1.set_xlabel('Frames', fontsize=18)
             ax2 = ax1.twinx()
             ax2.plot(frames, radii, 'blue')
-            ax2.set_ylabel('Radius', color='blue')
-            ax2.tick_params('y', colors='blue')
+            ax2.set_ylabel('Radius', color='blue', fontsize=18)
+            ax2.tick_params('y', colors='blue',)
 
             ax3.plot(frames, length, lw=3, color='black')
-            ax3.set_ylabel('Length', color='black')
-            ax3.set_xlabel('Frames')
+            ax3.set_ylabel('Length', color='black', fontsize=18)
+            ax3.set_xlabel('Frames', fontsize=18)
             ax4 = ax3.twinx()
             ax4.plot(frames, change_in_length, 'blue')
-            ax4.set_ylabel('Change in length', color='blue')
+            ax4.set_ylabel('Change in length', color='blue', fontsize=18)
             ax4.tick_params('y', colors='blue')
 
     def plot_single_edges(self, fig, ax, ax1, ax3, colonies, node_label, edge_label):
@@ -877,7 +880,8 @@ class ManualTracingMultiple:
                 tensions_1.append(edd.tension / mean_t)
 
                 if ground_truth is not None:
-                    g_t.append(edd.ground_truth)
+                    mean_gt = np.mean([e.ground_truth for e in colonies_1[str(i)].tot_edges])
+                    g_t.append(edd.ground_truth/mean_gt)
             except:
                 frames = frames[0:j]
 
@@ -913,12 +917,12 @@ class ManualTracingMultiple:
                     ax1.set(xlim=[0, 55], ylim=[0, 2.2])
                     ax2.set(xlim=[0, 55], ylim=[0, 2.2])
                 else:
-                    ax.set(xlim=[200, 800], ylim=[200, 800], aspect=1)
+                    ax.set(xlim=[400, 650], ylim=[400, 650], aspect=1)
                     ax1.set(xlim=[0, xlim_end], ylim=[0, 2.2])
                     ax2.set(xlim=[0, xlim_end], ylim=[0, 2.2])
 
             else:
-                ax.set(xlim=[0, 1030], ylim=[0, 1030], aspect=1)
+                ax.set(xlim=[400, 650], ylim=[400, 650], aspect=1)
                 ax1.set(xlim=[0, 31], ylim=[0, 2.2])
                 ax2.set(xlim=[0, 31], ylim=[0, 2.2])
             ax1.xaxis.set_major_locator(plt.MaxNLocator(12))
@@ -929,8 +933,9 @@ class ManualTracingMultiple:
 
             fname = '_tmp%05d.png' % int(j)
             mean_t_1 = np.mean([e.tension for e in colonies_1[str(i)].tot_edges])
+            mean_gt_1 = np.mean([e.ground_truth for e in colonies_1[str(i)].tot_edges])
             ax1.plot(i, current_edge.tension / mean_t_1, 'ok', color='red')
-            ax1.plot(i, current_edge.ground_truth, 'ok', color='red')
+            ax1.plot(i, current_edge.ground_truth/mean_gt_1, 'ok', color='red')
 
             current_new_edge = [e for e in colonies_2[str(i)].tot_edges if e.label == edge_label][0]
             mean_t_2 = np.mean([e.tension for e in colonies_2[str(i)].tot_edges])
@@ -1667,7 +1672,7 @@ class ManualTracingMultiple:
                         'Ground_truth_stochasticity_in_tension': [], 'Stochasticity_in_tension': [],
                         'Local_normalized_tensions': [], 'Deviation': [], 'Tensions': [],
                         'Repeat_Tensions': [], 'Change_in_tension': [], 'Time': [],
-                        'Curvature': [], 'Radius': [], 'Straight_Length': [],
+                        'Curvature': [], 'Radius': [], 'Straight_Length': [], 'Curve_fit_residual': [],
                         'Total_connected_edge_length': [], 'Change_in_length': [],
                         'Change_in_connected_edge_length': [], 'Binary_length_change': [],
                         'Binary_connected_length_change': [], 'Ground_truth': [], 'Ground_truth_error': []}
@@ -1676,7 +1681,7 @@ class ManualTracingMultiple:
                         'Topological_changes': [], 'Normalized_Tensions': [],
                         'Stochasticity_in_tension': [], 'Local_normalized_tensions': [],
                         'Deviation': [], 'Tensions': [], 'Repeat_Tensions': [], 'Change_in_tension': [],
-                        'Time': [], 'Curvature': [], 'Radius': [], 'Straight_Length': [],
+                        'Time': [], 'Curvature': [], 'Radius': [], 'Straight_Length': [], 'Curve_fit_residual': [],
                         'Total_connected_edge_length': [], 'Change_in_length': [],
                         'Change_in_connected_edge_length': [], 'Binary_length_change': [],
                         'Binary_connected_length_change': []}
@@ -1742,6 +1747,10 @@ class ManualTracingMultiple:
                         data['Index_Time'].append(int(t))
                         data['Radius'].append([e.radius for e in v.tot_edges if e.label == lab][0])
                         data['Curvature'].append([1 / e.radius for e in v.tot_edges if e.label == lab][0])
+                        for e in v.tot_edges:
+                            if len(e.cells) == 2:
+                                ress = np.abs(e.tension - e.cells[0].pressure)
+                        data['Curve_fit_residual'].append([e.curve_fit_residual for e in v.tot_edges if e.label == lab][0])
                         all_con_labels.append(con_labels)
                         [tensions.append([e.tension for e in v.tot_edges if e.label == lab][0])]
                         [lengths.append([e.straight_length for e in v.tot_edges if e.label == lab][0])]
@@ -1762,10 +1771,14 @@ class ManualTracingMultiple:
                             # For topological changes
                             cur_con_lab = all_con_labels[edge_index]
                             old_con_lab = all_con_labels[edge_index - 1]
-                            if set(cur_con_lab) != set(old_con_lab):
-                                data['Topological_changes'].append(1)
-                            else:
-                                data['Topological_changes'].append(0)
+
+                            try:
+                                if set(cur_con_lab) != set(old_con_lab):
+                                    data['Topological_changes'].append(1)
+                                else:
+                                    data['Topological_changes'].append(0)
+                            except:
+                                data['Topological_changes'].append(None)
 
                             data['Strain_rate'].append((lengths[edge_index] -
                                                         lengths[edge_index - 1]) / lengths[edge_index - 1])
@@ -1795,11 +1808,15 @@ class ManualTracingMultiple:
                 cell_index = 0
                 areas, perims, pressures, centroids = [], [], [], []
                 for t, v in colonies.items():
+                    min_pres, max_pres = np.min([c.pressure for c in v.cells]), np.max([c.pressure for c in v.cells]) 
+
+                    if ground_truth is not None:
+                        min_pres_gt, max_pres_gt = np.min([c.ground_truth_pressure for c in v.cells]), np.max([c.ground_truth_pressure for c in v.cells]) 
                     if [c.pressure for c in v.cells if c.label == cell_lab] != []:
                         cell_data['Cell_Labels'].append(cell_lab)
                         cell_data['Index_Cell_Labels'].append(cell_lab)
-                        cell_data['Pressures'].append([c.pressure for c in v.cells if c.label == cell_lab][0])
-                        cell_data['Ground_truth_pressure'].append([c.ground_truth_pressure for c in v.cells
+                        cell_data['Pressures'].append([2*((c.pressure - min_pres) / float(max_pres - min_pres)) - 1 for c in v.cells if c.label == cell_lab][0])
+                        cell_data['Ground_truth_pressure'].append([2*((c.ground_truth_pressure - min_pres_gt) / float(max_pres_gt - min_pres_gt)) - 1 for c in v.cells
                                                                    if c.label == cell_lab][0])
                         cell_data['Normalized_Pressures'].append(
                             ([c.pressure for c in v.cells if c.label == cell_lab][0]
@@ -1819,7 +1836,7 @@ class ManualTracingMultiple:
                                                              if c.label == cell_lab][0])
                         cell_data['Mean_node_edge_tension'].append(np.mean(temp_node_tensions))
                         mean_t = np.mean([e.tension for e in v.tot_edges])
-                        cell_data['Sum_edge_tension'].append(np.sum(temp_edge_tensions) ** 2)
+                        cell_data['Residual'].append()
                         [areas.append([c.area() for c in v.cells if c.label == cell_lab][0])]
                         [centroids.append([c.centroid() for c in v.cells if c.label == cell_lab][0])]
                         [pressures.append([c.pressure for c in v.cells if c.label == cell_lab][0])]
