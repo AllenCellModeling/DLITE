@@ -18,18 +18,17 @@ DLITE
 
 Dynamic Local Intercellular Tension Estimation
 of cell-cell forces in time-lapse images of a cell monolayer
-
-.. image:: https://user-images.githubusercontent.com/40371793/53372871-d0f8d200-3908-11e9-93f0-b006af0a4cb0.jpg
-   :height: 100px
-   :width: 200px
+   
+.. image:: https://user-images.githubusercontent.com/40371793/61190376-3f3bf800-a650-11e9-9e8f-51235200aca4.jpg
+   :height: 300px
+   :width: 750px
    :scale: 100 %
    :align: center
+  
    
-
 * Free software: Allen Institute Software License
 
 * Documentation: https://DLITE.readthedocs.io.
-
 
 Features
 --------
