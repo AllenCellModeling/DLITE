@@ -11,7 +11,9 @@ import random
 
 class node:
     def __init__(self, loc):
-        """loc is the (x,y) location of the node"""
+        """
+        loc is the (x,y) location of the node
+        """
         self.loc = loc
         self._edges = []
         self._tension_vectors = []
@@ -27,23 +29,31 @@ class node:
 
     @property
     def x(self):
-        """x co-ordinate of node"""
+        """
+        x co-ordinate of node
+        """
         return self.loc[0]
 
     @property
     def y(self):
-        """y co-ordinate of node"""
+        """
+        y co-ordinate of node
+        """
         return self.loc[1]
     
     @property
     def edges(self):
-        """List of edges connected to this node"""
+        """
+        List of edges connected to this node
+        """
 
         return self._edges
 
     @edges.setter
     def edges(self, edge):
-        """Sets list of edges -- make sure no repeat edges"""
+        """
+        Sets list of edges -- make sure no repeat edges
+        """
         if edge not in self._edges:
             self._edges.append(edge)
 
