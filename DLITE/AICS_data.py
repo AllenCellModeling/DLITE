@@ -1,6 +1,6 @@
 import numpy as np
 from .cell_describe import node
-from .AICS_data import data
+# from .AICS_data import data
 
 
 class ManualTracing(data):
