@@ -75,7 +75,7 @@ class SaveFile:
 		# Write file facets
 		all_edges_list = []
 		for i in self.voronoi.regions:
-		    if all([a > 0for a in i ]) and len(i) != 0:
+		    if all([a > 0 for a in i ]) and len(i) != 0:
 		        edge_list = []
 		        for ff in range(len(i)):
 		            try:
