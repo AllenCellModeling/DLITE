@@ -44,6 +44,21 @@ DLITE.cell\_describe module
    :undoc-members:
    :show-inheritance:
 
+DLITE.SaveSurfEvolFile module
+---------------------------
+
+.. automodule:: DLITE.SaveSurfEvolFile
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+DLITE.PlottingFunctions module
+---------------------------
+
+.. automodule:: DLITE.PlottingFunctions
+   :members:
+   :undoc-members:
+   :show-inheritance:
 
 Module contents
 ---------------
