@@ -1,6 +1,6 @@
 import numpy as np
-import networkx
-from networkx import *
+# import networkx
+# from networkx import *
 from scipy.spatial import Voronoi
 import sys
 
