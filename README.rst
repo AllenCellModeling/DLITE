@@ -41,15 +41,19 @@ Tests
 
     $ conda create --name DLITE python=3.7
 
-* Run demo notebook :
+* Activate conda environment :
 
 .. code-block:: bash
 
     $ conda activate DLITE
 
+* Install requirments in setup.py
+
 .. code-block:: bash
 
     $ pip install -e .[all]
+
+* Run tests
 
 .. code-block:: bash
 
@@ -59,36 +63,49 @@ Features
 --------
 
 | DLITE can
+------
 
-* Generate synthetic colonies from relaxed voronoi tessellations and save them as .txt files in Surface Evolver format. Run demo notebook:
+* Generate synthetic colonies from relaxed voronoi tessellations and save them as .txt files in Surface Evolver format. 
+
+  * Change directory
 
 .. code-block:: bash
 
     $ cd Notebooks
 
+  * Run demo notebook:
+
 .. code-block:: bash
 
     $ jupyter notebook Generate_Voronoi_Data.ipynb
 
-* Predict tensions in time-series synthetic data. Data is available as .txt files (/Notebooks/data/Synthetic_data/).  Run demo notebook :
+* Predict tensions in time-series synthetic data. Data is available as .txt files (/Notebooks/data/Synthetic_data/). 
+
+  * Run demo notebook:
 
 .. code-block:: bash
 
     $ jupyter notebook demo_notebook_Surface_Evolver.ipynb
 
-* Predict tensions in time-series ZO-1 data. Data is available as .txt files (/Notebooks/data/ZO-1_data/). Run demo notebook:
+* Predict tensions in time-series ZO-1 data. Data is available as .txt files (/Notebooks/data/ZO-1_data/). 
+
+  * Run demo notebook:
 
 .. code-block:: bash
 
     $ jupyter notebook demo_notebook_ZO-1.ipynb
 
-* Compare tension predictions between CellFIT and DLITE. Run demo notebook:
+* Compare tension predictions between CellFIT and DLITE. 
+
+  * Run demo notebook:
 
 .. code-block:: bash
 
     $ jupyter notebook Compare_CELLFIT_DLITE.ipynb
 
-* Simulate field of view (FOV) drift within a single colony. Run demo notebook:
+* Simulate field of view (FOV) drift within a single colony. 
+
+  * Run demo notebook:
 
 .. code-block:: bash
 
@@ -97,9 +114,12 @@ Features
 Usage
 ------
 
-|DLITE needs
+| DLITE needs
+------
 
-* Input data in the form of .txt files. Synthetic data .txt files are formatted for the outputs of Surface Evolver. ZO-1 data .txt files are formatted for the outputs of manual tracing using the NeuronJ plugin in ImageJ.
+* Input data in the form of .txt files. 
+  * Synthetic data .txt files are formatted for the outputs of Surface Evolver.
+  *  ZO-1 data .txt files are formatted for the outputs of manual tracing using the NeuronJ plugin in ImageJ.
  
 Support
 -------
