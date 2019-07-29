@@ -31,6 +31,50 @@ Full documentation is available here_.
    
 .. Add a section on what DLITE can do, as bullet points (It can: - load such and such format -...)
 .. Add a section on what DLITE needs as inputs, how the input files need to be formatted
+Organization
+--------
+
+The project has the following structure:
+
+    DLITE/
+      |- README.rst
+      |- setup.py
+      |- requirements.txt
+      |- tox.ini
+      |- Makefile
+      |- MANIFEST.in
+      |- HISTORY.rst
+      |- CHANGES.rst
+      |- AUTHORS.rst
+      |- LICENSE
+      |- docs/
+         |- ...
+      |- tests/
+         |- __init__.py
+         |- test_example.py
+         |- data/
+            |- ...
+      |- DLITE/
+         |- __init__.py
+         |- cell_describe.py
+         |- AICS_data.py
+         |- ManualTracing.py
+         |- ManualTracingMutliple.py
+         |- SurfaceEvolver.py
+         |- Lloyd_relaxation_class.py
+         |- SaveSurfEvolFile.py
+         |- PlottingFunctions.py
+      |- Notebooks/
+         |- Generate_Voronoi_Data.ipynb
+         |- Demo_notebook_SurfaceEvolver.ipynb
+         |- Demo_notebook_ZO-1.ipynb
+         |- Compare_CELLFIT_DLITE.ipynb
+         |- FOV_drift.ipynb
+         |- Data/
+            |- Synthetic_data
+               |- ...
+            |- ZO-1_data
+               |- ...
 
 Tests
 --------
@@ -62,7 +106,7 @@ Tests
 Features
 --------
 
-| DLITE can
+**DLITE can**
 
 
 * Generate synthetic colonies from relaxed voronoi tessellations and save them as .txt files in Surface Evolver format. 
@@ -108,7 +152,7 @@ Features
 Usage
 ------
 
-| DLITE needs
+**DLITE needs**
 
 
 * Input data in the form of .txt files. 
