@@ -1,4 +1,6 @@
-.. include:: readme.rst
+#####
+DLITE
+#####
 
 .. toctree::
    :maxdepth: 2
@@ -8,8 +10,9 @@
    usage
    physics
    modules
-   contributing
    authors
+
+.. include:: readme.rst
 
 Indices and tables
 ==================

@@ -10,4 +10,6 @@ Development Lead
 Contributors
 ------------
 
+* Dave Williams <cdavew@alleninstitute.org>
+
 None yet. Why not be the first?

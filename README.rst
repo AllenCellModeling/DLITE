@@ -16,8 +16,12 @@ DLITE
   :alt: Codecov Status
 
 
-Dynamic Local Intercellular Tension Estimation
-of cell-cell forces in time-lapse images of a cell monolayer
+DLITE is Dynamic Local Intercellular Tension Estimation of cell-cell forces in time-lapse images of a cell monolayer. In other words, DLITE is a method that takes in a digested skeletonization of curved edges at the tops of cell colonies and gives you a predicted tension along each of those edges. This differs from other tools such as `CellFIT`_ in that it is intended to be applied across time series; the predictions get better as you feed more and more frames into it. 
+
+Full documentation is available here_.
+
+.. _here: https://DLITE.readthedocs.io.
+.. _CellFIT: http://www.civil.uwaterloo.ca/brodland/inferring-forces-in-cells.html 
    
 .. image:: https://user-images.githubusercontent.com/40371793/61190376-3f3bf800-a650-11e9-9e8f-51235200aca4.jpg
    :width: 750px
@@ -25,9 +29,8 @@ of cell-cell forces in time-lapse images of a cell monolayer
    :align: center
   
    
-* Free software: Allen Institute Software License
-
-* Documentation: https://DLITE.readthedocs.io.
+.. Add a section on what DLITE can do, as bullet points (It can: - load such and such format -...)
+.. Add a section on what DLITE needs as inputs, how the input files need to be formatted
 
 Tests
 --------
@@ -88,9 +91,11 @@ Support
 -------
 We are not currently supporting this code, but simply releasing it to the community AS IS but are not able to provide any guarantees of support. The community is welcome to submit issues, but you should not expect an active response.
 
-Credits
+Additional
 -------
 
-This package was created with Cookiecutter_.
+* Licensed under the `Allen Institute Software License`_.
+* This package was created with Cookiecutter_.
 
+.. _Allen Institute Software License: https://github.com/AllenCellModeling/DLITE/blob/master/LICENSE
 .. _Cookiecutter: https://github.com/audreyr/cookiecutter
