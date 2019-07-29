@@ -1087,8 +1087,7 @@ class colony:
                     #                    minimizer_kwargs=minimizer_kwargs, niter=100, stepsize=0.05, disp=True)
 
                     # Or, choose to run L-BFGS
-                    sol = minimize(self.objective_function_tension, x0,
-                                   method='L-BFGS-B', bounds=bnds, options={**kwargs}, tol=1e-9)
+                    sol = minimize(self.objective_function_tension, x0, method='L-BFGS-B', bounds=bnds, options={**kwargs}, tol=1e-9)
 
                     # Or, choose to run constrained SLSQP solver, similar to CellFIT
                     # sol = minimize(self.objective_function_tension, x0, method = 'SLSQP', constraints = cons)

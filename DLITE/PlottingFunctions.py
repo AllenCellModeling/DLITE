@@ -7,6 +7,7 @@ import pylab
 from scipy import stats
 import numpy.linalg as la
 import numpy as np
+import os
 
 class PlottingFunctions:
     def __init__(self):
