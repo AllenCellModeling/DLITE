@@ -20,7 +20,6 @@
 #
 import os
 import sys
-import networkx
 sys.path.insert(0, os.path.abspath('..'))
 
 import DLITE
