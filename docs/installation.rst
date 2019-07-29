@@ -5,47 +5,34 @@ Installation
 ============
 
 
-Stable release
---------------
+Updateable install
+------------------
 
-To install DLITE, run this command in your terminal:
-
-.. code-block:: console
-
-    $ pip install DLITE
-
-This is the preferred method to install DLITE, as it will always install the most recent stable release.
-
-If you don't have `pip`_ installed, this `Python installation guide`_ can guide
-you through the process.
-
-.. _pip: https://pip.pypa.io
-.. _Python installation guide: http://docs.python-guide.org/en/latest/starting/installation/
-
-
-From sources
-------------
-
-The sources for DLITE can be downloaded from the `Github repo`_.
-
-You can either clone the public repository:
+To install ``DLITE`` in an updatable and editable form, run these commands in your terminal:
 
 .. code-block:: console
 
+    $ conda create --name dlite
+    $ conda activate dlite
     $ git clone git://github.com/AllenCellModeling/DLITE
+    $ cd DLITE
+    $ pip install -e .[all]
 
-Or download the `tarball`_:
-
-.. code-block:: console
-
-    $ curl  -OL https://github.com/AllenCellModeling/DLITE/tarball/master
-
-Once you have a copy of the source, you can install it with:
+This is the preferred method to install ``DLITE`` in its current alpha form as it will allow updates via:
 
 .. code-block:: console
 
-    $ python setup.py install
+    $ git pull
 
+Direct pip install
+------------------
+
+It is also possible to install ``DLITE`` directly from the `Github repo`_ via:
+
+.. code-block:: console
+
+    $ pip install git+https://github.com/AllenCellModeling/DLITE.git
 
 .. _Github repo: https://github.com/AllenCellModeling/DLITE
 .. _tarball: https://github.com/AllenCellModeling/DLITE/tarball/master
+
