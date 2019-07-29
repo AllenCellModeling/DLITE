@@ -35,7 +35,7 @@ Full documentation is available here_.
 Tests
 --------
 
-* After forking the repo, run tox for pytest
+* After forking the repo, create a conda environment and run tests to confirm that required dependencies are installed
 
 .. code-block:: bash
 
@@ -58,35 +58,49 @@ Tests
 Features
 --------
 
-|| Predict tensions in synthetic data
+| DLITE can
 
-* Data is available as txt files (/Notebooks/data/Synthetic_data/)
+* Generate synthetic colonies from relaxed voronoi tessellations and save them as .txt files in Surface Evolver format. Run demo notebook:
 
 .. code-block:: bash
 
     $ cd Notebooks
 
-* Run demo notebook :
+.. code-block:: bash
+
+    $ jupyter notebook Generate_Voronoi_Data.ipynb
+
+* Predict tensions in time-series synthetic data. Data is available as .txt files (/Notebooks/data/Synthetic_data/).  Run demo notebook :
 
 .. code-block:: bash
 
     $ jupyter notebook demo_notebook_Surface_Evolver.ipynb
 
-|| Predict tensions in ZO-1 data
-
-* Data is available as txt files (/Notebooks/data/ZO-1_data/)
+* Predict tensions in time-series ZO-1 data. Data is available as .txt files (/Notebooks/data/ZO-1_data/). Run demo notebook:
 
 .. code-block:: bash
 
-    $ (env)> cd Notebooks
+    $ jupyter notebook demo_notebook_ZO-1.ipynb
 
-* Run demo notebook :
+* Compare tension predictions between CellFIT and DLITE. Run demo notebook:
 
 .. code-block:: bash
 
-    $ (env)> jupyter notebook demo_notebook_ZO-1.ipynb
+    $ jupyter notebook Compare_CELLFIT_DLITE.ipynb
 
+* Simulate field of view (FOV) drift within a single colony. Run demo notebook:
 
+.. code-block:: bash
+
+    $ jupyter notebook FOV_drift.ipynb
+
+Usage
+------
+
+|DLITE needs
+
+* Input data in the form of .txt files. Synthetic data .txt files are formatted for the outputs of Surface Evolver. ZO-1 data .txt files are formatted for the outputs of manual tracing using the NeuronJ plugin in ImageJ.
+ 
 Support
 -------
 We are not currently supporting this code, but simply releasing it to the community AS IS but are not able to provide any guarantees of support. The community is welcome to submit issues, but you should not expect an active response.
