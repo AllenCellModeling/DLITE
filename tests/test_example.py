@@ -84,15 +84,15 @@ class TestColony:
                                                                                   ground_truth = True)
 		nodes_dataframe = PlottingFunctionsInstance.seaborn_nodes_dataframe(colonies, None)
 
-	def test_make_video(self):
-		"""
-		Check that the correct version of ffmpeg is installed so that you can save videos
-		"""
-		PlottingFunctionsInstance = PlottingFunctions()
+	# def test_make_video(self):
+	# 	"""
+	# 	Check that the correct version of ffmpeg is installed so that you can save videos
+	# 	"""
+	# 	PlottingFunctionsInstance = PlottingFunctions()
 
-		fig, (ax, ax1, ax3) = plt.subplots(3, 1, figsize=(5.5, 15))
+	# 	fig, (ax, ax1, ax3) = plt.subplots(3, 1, figsize=(5.5, 15))
 
-		PlottingFunctionsInstance.plot_single_edges(fig, ax, ax1, ax3, colonies, 0, 30)
+	# 	PlottingFunctionsInstance.plot_single_edges(fig, ax, ax1, ax3, colonies, 0, 30)
 
 
 
