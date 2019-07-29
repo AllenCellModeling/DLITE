@@ -283,6 +283,9 @@ class edge:
 
     @property
     def previous_label(self):
+        """
+        Label of this edge at the previous time point
+        """
         return self._previous_label
 
     @previous_label.setter
@@ -1080,7 +1083,7 @@ class colony:
                     for k, xxx in enumerate(x0):
                         x0[k] = random.randint(0, 101)/100
 
-                    print('guess is', x0)
+                    print('guess tension is', x0)
 
                     # minimizer_kwargs = {"method": "L-BFGS-B", "bounds": bnds} # used only BFGS and no bounds before
                     # sol = basinhopping(self.objective_function_tension, x0, T=0.5, interval=10,
@@ -1096,7 +1099,7 @@ class colony:
                     # for k, xxx in enumerate(x0):
                     #     x0[k] = random.randint(0,1001)/1000
 
-                    print('guess is', x0)
+                    print('guess tension is', x0)
 
                     # Run L-BFGS
                     sol = minimize(self.objective_function_tension, x0, method='L-BFGS-B',
@@ -1125,7 +1128,6 @@ class colony:
                     # minimizer_kwargs = {"method": "L-BFGS-B", "bounds" : bnds}
                     # sol = basinhopping(self.objective_function_pressure, x0,
                     #                    minimizer_kwargs=minimizer_kwargs, niter=50, disp=True)
-                    print('all same')
                     print('guess pressure is', x0)
                     # Or, run L-BFGSB
                     sol = minimize(self.objective_function_pressure,
@@ -1146,15 +1148,12 @@ class colony:
 
                         # Or, run SLSQP
                         # sol = minimize(self.objective_function_pressure, x0, method='SLSQP', constraints=cons)
-                        print('second')
                         print('guess pressure is', x0)
                         # Or, run L-BFGSB
                         sol = minimize(self.objective_function_pressure, x0, method='L-BFGS-B',
                                        bounds=bnds, options={**kwargs})
                     else:
                         # Run L-BFGSB
-                        print('else')
-                        print('new objective')
                         print('guess pressure is', x0)
                         # for k, xxx in enumerate(x0):
                         #     x0[k] = random.randint(0,101)/10000
@@ -1211,6 +1210,7 @@ class colony:
 
         for j, e_or_c in enumerate(edge_or_cell):
             if type(e_or_c) == edge:
+                # Initial guesses for edges
                 if not e_or_c.guess_tension:
                     # If no guess, we assign guess based on surrounding edge tension guesses
                     node_a, node_b = e_or_c.node_a, e_or_c.node_b
@@ -1229,6 +1229,7 @@ class colony:
                     initial_gues.append(e_or_c.guess_tension)
                 
             else:
+                # Initial guesses for cells
                 if not e_or_c.guess_pressure:
                     adj_press = self.get_adjacent_pressures(e_or_c)
                     guess = np.mean(adj_press) if adj_press != [] else 0
@@ -1339,7 +1340,6 @@ class colony:
                     edge_pressure_lhs = edge_pressure_lhs + cell_values[i]*x[cell_indices[i]]
 
                 objective = objective + (edge_pressure_lhs - cell_rhs)**2
-                #objective = objective + (edge_pressure_lhs - cell_rhs)**2 
 
         return objective 
 
@@ -1503,10 +1503,8 @@ class colony:
             for j, c in enumerate(self.cells):
                 c.pressure = pressures[j]
         else:
-            # min_pres = np.min(pressures)
             for j, c in enumerate(self.cells):
                 c.pressure = pressures[j]
-            # cell.pressure = pressures[j]
 
         return pressures, p, a_mat
 

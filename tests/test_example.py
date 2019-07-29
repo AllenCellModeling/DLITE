@@ -32,12 +32,12 @@ colonies2 = ManualTracingMultipleInstance.main_computation_based_on_prev(timepoi
 
 # Generate a Voronoi dataset
 
-# P = np.random.random((6000,2))
-# gg = Atlas(points = P, dimensions = (6000,2))
-# vor = gg.generate_voronoi()
-# vor2 = gg.relax_points(times = 180)
-# savefile = SaveFile('test.fe', vor)
-# savefile.save()
+P = np.random.random((100,2))
+gg = Atlas(points = P, dimensions = (100,2))
+vor = gg.generate_voronoi()
+vor2 = gg.relax_points(times = 2)
+savefile = SaveFile('test.fe', vor)
+savefile.save()
 
 class TestColony:
 	def test_no_NaN(self):

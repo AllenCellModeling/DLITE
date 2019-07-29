@@ -9,6 +9,7 @@ class SaveFile:
 		Inputs
 		----------
 		Filename: Name of file to save
+		Voronoi: Generated Voronoi tessellation
 		"""
 		self.filename = filename
 		self.voronoi = voronoi
@@ -17,6 +18,20 @@ class SaveFile:
 		"""
 		Save method that saves a given filename and Voronoi
 		tessellation in Surface Evolver format
+		This format is defined as 
+
+		SRING
+		space_dimension
+		vertices
+		...
+		edges
+		...
+		faces
+		...
+		bodies
+		...
+		gogo
+		...
 		"""
 
 		# Write file header
@@ -202,9 +217,9 @@ class SaveFile:
 
 	def add_gogo3(self, tension, begin_id, end_id):
 		"""
-		Function to add gogo3 function to SE txt file
-		It sets a tension 'tension' to all edges with labels/ID
-		within a specified range between begin_id and end_id
+		Function to add gogo3 function to the end of .txt file
+		It sets a specified tension to all edge labels
+		within a specified range (begin_id, end_id)
 		""" 
 		numbers = np.linspace(begin_id, end_id, end_id - begin_id + 1)
 
