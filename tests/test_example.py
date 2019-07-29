@@ -70,19 +70,19 @@ class TestColony:
 		for i in range(len(colonies)):
 			assert [len(n.edges) for n in colonies[str(i)].tot_nodes][0] != 2
 
-	def test_make_dataframes(self):
-		"""
-		Check that no errors while making nodes, edges and cells dataframes
-		"""
-		PlottingFunctionsInstance = PlottingFunctions()
-		common_edge_labels = PlottingFunctionsInstance.get_repeat_edge(colonies)
-		common_cell_labels = PlottingFunctionsInstance.get_repeat_cell(colonies)
-		# Make the dataframes
-		edges_dataframe, cells_dataframe = PlottingFunctionsInstance.seaborn_plot(None, colonies,
-                                                                                  common_edge_labels,
-                                                                                  common_cell_labels,
-                                                                                  ground_truth = True)
-		nodes_dataframe = PlottingFunctionsInstance.seaborn_nodes_dataframe(colonies, None)
+	# def test_make_dataframes(self):
+	# 	"""
+	# 	Check that no errors while making nodes, edges and cells dataframes
+	# 	"""
+	# 	PlottingFunctionsInstance = PlottingFunctions()
+	# 	common_edge_labels = PlottingFunctionsInstance.get_repeat_edge(colonies)
+	# 	common_cell_labels = PlottingFunctionsInstance.get_repeat_cell(colonies)
+	# 	# Make the dataframes
+	# 	edges_dataframe, cells_dataframe = PlottingFunctionsInstance.seaborn_plot(None, colonies,
+ #                                                                                  common_edge_labels,
+ #                                                                                  common_cell_labels,
+ #                                                                                  ground_truth = True)
+	# 	nodes_dataframe = PlottingFunctionsInstance.seaborn_nodes_dataframe(colonies, None)
 
 	# def test_make_video(self):
 	# 	"""
