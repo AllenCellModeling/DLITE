@@ -31,14 +31,14 @@ class TestColony:
 		savefile = SaveFile('test.fe', vor)
 		savefile.save()
 
-	def test_ZO_1_data(self):
-		timepoints = [int(i) for i in np.linspace(0, 10, 11)]
-		name_first = 'MAX_20170123_I01_003-Scene-4-P4-split_T'
-		name_last = '.ome.txt'
-		ManualTracingMultipleInstance = ManualTracingMultiple(timepoints, name_first = name_first,
-                                                           name_last = name_last, type=None)
-		colonies = ManualTracingMultipleInstance.main_computation_based_on_prev(timepoints, colonies = None, index = None, 
-                                          old_dictionary = None, solver = 'CellFIT', maxiter = 60*1000)
+	# def test_ZO_1_data(self):
+	# 	timepoints = [int(i) for i in np.linspace(0, 10, 11)]
+	# 	name_first = 'MAX_20170123_I01_003-Scene-4-P4-split_T'
+	# 	name_last = '.ome.txt'
+	# 	ManualTracingMultipleInstance = ManualTracingMultiple(timepoints, name_first = name_first,
+ #                                                           name_last = name_last, type=None)
+	# 	colonies = ManualTracingMultipleInstance.main_computation_based_on_prev(timepoints, colonies = None, index = None, 
+ #                                          old_dictionary = None, solver = 'CellFIT', maxiter = 60*1000)
 
 	def test_no_NaN(self):
 		"""
