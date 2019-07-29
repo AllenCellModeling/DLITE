@@ -63,15 +63,9 @@ Features
 --------
 
 | DLITE can
-------
+
 
 * Generate synthetic colonies from relaxed voronoi tessellations and save them as .txt files in Surface Evolver format. 
-
-  * Change directory
-
-.. code-block:: bash
-
-    $ cd Notebooks
 
   * Run demo notebook:
 
@@ -115,7 +109,7 @@ Usage
 ------
 
 | DLITE needs
-------
+
 
 * Input data in the form of .txt files. 
   * Synthetic data .txt files are formatted for the outputs of Surface Evolver.
