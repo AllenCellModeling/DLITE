@@ -60,6 +60,14 @@ DLITE.PlottingFunctions module
    :undoc-members:
    :show-inheritance:
 
+DLITE.Lloyd\_relaxation\_class module
+---------------------------
+
+.. automodule:: DLITE.Lloyd_relaxation_class
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 Module contents
 ---------------
 
