@@ -111,15 +111,11 @@ Features
 
 * Generate synthetic colonies from relaxed voronoi tessellations and save them as .txt files in Surface Evolver format. 
 
-  * Run demo notebook:
-
 .. code-block:: bash
 
     $ jupyter notebook Generate_Voronoi_Data.ipynb
 
 * Predict tensions in time-series synthetic data. Data is available as .txt files (/Notebooks/data/Synthetic_data/). 
-
-  * Run demo notebook:
 
 .. code-block:: bash
 
@@ -127,23 +123,17 @@ Features
 
 * Predict tensions in time-series ZO-1 data. Data is available as .txt files (/Notebooks/data/ZO-1_data/). 
 
-  * Run demo notebook:
-
 .. code-block:: bash
 
     $ jupyter notebook demo_notebook_ZO-1.ipynb
 
 * Compare tension predictions between CellFIT and DLITE. 
 
-  * Run demo notebook:
-
 .. code-block:: bash
 
     $ jupyter notebook Compare_CELLFIT_DLITE.ipynb
 
 * Simulate field of view (FOV) drift within a single colony. 
-
-  * Run demo notebook:
 
 .. code-block:: bash
 
@@ -156,8 +146,10 @@ Usage
 
 
 * Input data in the form of .txt files. 
-  * Synthetic data .txt files are formatted for the outputs of Surface Evolver.
-  *  ZO-1 data .txt files are formatted for the outputs of manual tracing using the NeuronJ plugin in ImageJ.
+
+* Synthetic data .txt files are formatted for the outputs of Surface Evolver.
+
+*  ZO-1 data .txt files are formatted for the outputs of manual tracing using the NeuronJ plugin in ImageJ.
  
 Support
 -------
