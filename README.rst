@@ -29,30 +29,49 @@ of cell-cell forces in time-lapse images of a cell monolayer
 
 * Documentation: https://DLITE.readthedocs.io.
 
-Features
+Tests
 --------
 
-| Predict tensions in Surface Evolver data
-
-
-* Data is available as txt files (/Notebooks/data/voronoi_very_small_44_edges_tension_edges_20_30_1.0.fe.txt):
-
+* After forking the repo, run tox for pytest
 
 .. code-block:: bash
 
-    $ (env)> cd Notebooks
+    $ conda create --name DLITE python=3.7
 
 * Run demo notebook :
 
 .. code-block:: bash
 
-    $ (env)> jupyter notebook demo_notebook_SurfaceEvolver.ipynb
+    $ conda activate DLITE
 
-| Predict tensions in ZO-1 data
+.. code-block:: bash
 
+    $ pip install -e .[all]
 
-* Data is available as txt files (/Notebooks/data/MAX_20170123_I01_003-Scene-4-P4-split_T0.ome.txt):
+.. code-block:: bash
 
+    $ tox
+
+Features
+--------
+
+|| Predict tensions in synthetic data
+
+* Data is available as txt files (/Notebooks/data/Synthetic_data/)
+
+.. code-block:: bash
+
+    $ cd Notebooks
+
+* Run demo notebook :
+
+.. code-block:: bash
+
+    $ jupyter notebook demo_notebook_Surface_Evolver.ipynb
+
+|| Predict tensions in ZO-1 data
+
+* Data is available as txt files (/Notebooks/data/ZO-1_data/)
 
 .. code-block:: bash
 

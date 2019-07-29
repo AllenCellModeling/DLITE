@@ -24,6 +24,9 @@ class SurfaceEvolver:
         self.name_end = name_end
 
     def compute(self, name, solver='KKT'):
+        """
+        Conpute tensions and pressure for a single colony
+        """
 
         nodes, edges, cells = self.get_X_Y_data_only_junction(name)
         edges2 = [e for e in edges if e.radius is not None]
@@ -35,6 +38,9 @@ class SurfaceEvolver:
         return col1, tensions, pressures
 
     def get_X_Y_data_only_junction(self, name, cleanup_cutoff=0.5):
+        """
+        Read Surface Evolver .txt file and save as colony class
+        """
         # Open file
         with open(name, 'r') as f:
             a = [l.split('\t') for l in f]
@@ -242,7 +248,7 @@ class SurfaceEvolver:
                     if set(a) == set(c):
                         c_presses.append(float(bodies_data.at[str(count), 'pressure']))
                     count += 1
-            print('Length of cpresses', len(c_presses), len(cells))
+            print('Number of cells', len(c_presses), len(cells))
 
             mean_pres_c = np.mean(c_presses)
             max_pres, min_pres = np.max(c_presses), np.min(c_presses)
@@ -253,9 +259,9 @@ class SurfaceEvolver:
                 except:
                     c.ground_truth_pressure = np.NaN
 
-        print('ground_truth', [e.ground_truth for e in edges])
-        print('Number of cells:', len(cells))
-        print('Ground truth pressure', [c.ground_truth_pressure for c in cells])
+        # print('ground_truth', [e.ground_truth for e in edges])
+        # print('Number of cells:', len(cells))
+        # print('Ground truth pressure', [c.ground_truth_pressure for c in cells])
         return nodes, edges, cells
 
     def initial_numbering(self, number0, min_x=None, max_x=None, 
@@ -522,10 +528,10 @@ class SurfaceEvolver:
             if not closest_new_cell.label:
                 if np.linalg.norm(np.subtract(cc.centroid(), closest_new_cell.centroid())) < 100:
                     closest_new_cell.label = cc.label
-        print('old cells')
-        print([c.label for c in old_cells])
-        print('new cells')
-        print([c.label for c in now_cells])
+        # print('old cells')
+        # print([c.label for c in old_cells])
+        # print('new cells')
+        # print([c.label for c in now_cells])
 
         max_label = max([c.label for c in now_cells if c.label != []])
         if max_label > 999:
@@ -533,10 +539,10 @@ class SurfaceEvolver:
         else:
             count = max_label + 1
 
-        print([c.label for c in now_cells])
+        # print([c.label for c in now_cells])
         for j, cc in enumerate(now_cells):
             if not cc.label and cc.label != 0:
-                print('no label?')
+                # print('no label?')
                 now_cells[j].label = count
                 count += 1
         return now_cells
@@ -636,10 +642,12 @@ class SurfaceEvolver:
             index = 0
 
     
-        minx = minx + step_x/20
-        miny = miny + step_y/20
-        maxx = maxx + step_x/20
-        maxy = maxy + step_y/20
+        # CHANGE FOV_SPEED to get different speeds of FOV drift
+        fov_speed = 20
+        minx = minx + step_x/fov_speed
+        miny = miny + step_y/fov_speed
+        maxx = maxx + step_x/fov_speed
+        maxy = maxy + step_y/fov_speed
 
         colonies[str(index + 1)], new_dictionary = self.track_timestep(colonies[str(index)],
                                                                         old_dictionary, number_now=None,
