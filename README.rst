@@ -151,7 +151,21 @@ Usage
 * Synthetic data .txt files are formatted for the outputs of Surface Evolver.
 
 *  ZO-1 data .txt files are formatted for the outputs of tracing using the NeuronJ plugin in ImageJ.
- 
+
+Citation
+------
+
+If you find this code useful in your research, please consider citing the following paper::
+
+  @article{vasan2019dlite,
+    title={DLITE uses cell-cell interface movement to better infer cell-cell tensions},
+    author={Vasan, Ritvik and Maleckar, Mary M and Williams, Charles David and Rangamani, Padmini},
+    journal={bioRxiv},
+    pages={541144},
+    year={2019},
+    publisher={Cold Spring Harbor Laboratory}
+  }
+
 Support
 -------
 We are not currently supporting this code, but simply releasing it to the community AS IS but are not able to provide any guarantees of support. The community is welcome to submit issues, but you should not expect an active response.
