@@ -22,7 +22,7 @@ Full documentation is available here_. For more details, refer to our bioarxiv_ 
 
 .. _here: https://DLITE.readthedocs.io.
 .. _CellFIT: http://www.civil.uwaterloo.ca/brodland/inferring-forces-in-cells.html 
-.. _bioarxiv: .. _biorxviv: https://www.biorxiv.org/content/10.1101/541144v2.full
+.. _bioarxiv: .. https://www.biorxiv.org/content/10.1101/541144v2.full
    
 .. image:: https://user-images.githubusercontent.com/40371793/61190376-3f3bf800-a650-11e9-9e8f-51235200aca4.jpg
    :width: 750px
