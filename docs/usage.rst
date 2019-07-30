@@ -26,7 +26,7 @@ Generate random Voronoi tessellations and save as .txt files in a format require
       |- ...
     bodies/
       |- ...
-    read
+    read/
   	gogo/
 
 *	Demo_notebook_SurfaceEvolver.ipynb
@@ -60,9 +60,9 @@ For an example of such outputs, take a look at the data in::
 
 *	Compare_CELLFIT_DLITE.ipynb
 
-DLITE offers you the option to compute tensions using CELLFIT. Compare_CELLFIT_DLITE.ipynb helps visualize the differences between the two methods. Datasets available are those described in our biorxviv_ paper
+DLITE offers you the option to compute tensions using CELLFIT. Compare_CELLFIT_DLITE.ipynb helps visualize the differences between the two methods. Datasets available are those described in our `biorxiv`_ paper
 
-.. _biorxviv: https://www.biorxiv.org/content/10.1101/541144v2.full
+.. _biorxiv: https://www.biorxiv.org/content/10.1101/541144v2.full
 
 These datasets are organized as::
 

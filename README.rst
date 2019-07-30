@@ -18,11 +18,11 @@ DLITE
 
 DLITE is Dynamic Local Intercellular Tension Estimation of cell-cell forces in time-lapse images of a cell monolayer. In other words, DLITE is a method that takes in a digested skeletonization of curved edges at the tops of cell colonies and gives you a predicted tension along each of those edges. This differs from other tools such as `CellFIT`_ in that it is intended to be applied across time series; the predictions get better as you feed more and more frames into it. 
 
-Full documentation is available here_. For more details, refer to our bioarxiv_ paper.
+Full documentation is available `here`_. For more details, refer to our `biorxiv`_ paper.
 
 .. _here: https://DLITE.readthedocs.io.
 .. _CellFIT: http://www.civil.uwaterloo.ca/brodland/inferring-forces-in-cells.html 
-.. _bioarxiv: .. https://www.biorxiv.org/content/10.1101/541144v2.full
+.. _biorxiv: .. https://www.biorxiv.org/content/10.1101/541144v2.full
    
 .. image:: https://user-images.githubusercontent.com/40371793/61190376-3f3bf800-a650-11e9-9e8f-51235200aca4.jpg
    :width: 750px
