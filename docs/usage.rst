@@ -8,8 +8,6 @@ Usage
 
 * To visualize how you can use DLITE, run the example notebooks that are available with the release::
 
-	cd Notebooks
-
     jupyter notebook 
 
 Here, we provide a brief description of each notebook
@@ -28,7 +26,7 @@ Generate random Voronoi tessellations and save as .txt files in a format require
       |- ...
     bodies/
       |- ...
-    read/
+    read
   	gogo/
 
 *	Demo_notebook_SurfaceEvolver.ipynb
