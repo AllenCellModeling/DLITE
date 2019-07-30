@@ -34,7 +34,7 @@ Full documentation is available here_.
 Organization
 --------
 
-The project has the following structure:
+The project has the following structure::
 
     DLITE/
       |- README.rst
