@@ -1081,7 +1081,7 @@ class colony:
 
                     # Assign random initial guesses in range 0-1 upto 2 digits
                     for k, xxx in enumerate(x0):
-                        x0[k] = random.randint(0, 101)/100
+                        x0[k] = random.randint(0, 1001)/1000
 
                     print('guess tension is', x0)
 

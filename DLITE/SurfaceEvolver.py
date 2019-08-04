@@ -607,7 +607,7 @@ class SurfaceEvolver:
 
         return colonies, dictionary
 
-    def FOV_Drift(self, number, num_of_frames=2, cleanup_cutoff=0.5, Whole_FOV_colony=None, 
+    def FOV_Drift(self, number, num_of_frames=1.8, cleanup_cutoff=0.5, Whole_FOV_colony=None, 
                 colonies=None, index=None, old_dictionary=None, 
                 solver=None, minx=None,
                 maxx=None, miny=None, maxy=None,

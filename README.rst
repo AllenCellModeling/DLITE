@@ -148,9 +148,9 @@ Usage
 
 * Input data in the form of .txt files. 
 
-* Synthetic data .txt files are formatted for the outputs of Surface Evolver.
+* Synthetic data .txt files that are formatted for the outputs of Surface Evolver.
 
-*  ZO-1 data .txt files are formatted for the outputs of tracing using the NeuronJ plugin in ImageJ.
+*  Experimental data .txt files that are formatted for the outputs of tracing using the NeuronJ plugin in ImageJ.
 
 Citation
 ------
