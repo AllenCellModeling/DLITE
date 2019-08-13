@@ -242,10 +242,11 @@ class SurfaceEvolver:
                 C_Y.append(c_y)
 
             c_presses = []
+
             for c in C_X:
                 count = 1
                 for a in X:
-                    if set(a) == set(c):
+                    if set(a) == set(c) or set(a).intersection(set(c)) == set(a) or set(a).intersection(set(c)) == set(c):
                         c_presses.append(float(bodies_data.at[str(count), 'pressure']))
                     count += 1
             print('Number of cells', len(c_presses), len(cells))
