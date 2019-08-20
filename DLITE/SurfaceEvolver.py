@@ -644,7 +644,7 @@ class SurfaceEvolver:
 
     
         # CHANGE FOV_SPEED to get different speeds of FOV drift
-        fov_speed = 20
+        fov_speed = 30
         minx = minx + step_x/fov_speed
         miny = miny + step_y/fov_speed
         maxx = maxx + step_x/fov_speed
