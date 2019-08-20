@@ -644,7 +644,7 @@ class SurfaceEvolver:
 
     
         # CHANGE FOV_SPEED to get different speeds of FOV drift
-        fov_speed = 30
+        fov_speed = 7
         minx = minx + step_x/fov_speed
         miny = miny + step_y/fov_speed
         maxx = maxx + step_x/fov_speed
@@ -665,7 +665,7 @@ class SurfaceEvolver:
         print('Next colony number', str(index + 1))
         index = index + 1
 
-        if index < 10:
+        if index < 8:
             colonies = self.FOV_Drift(number, num_of_frames, cleanup_cutoff, Whole_FOV_colony, 
                                         colonies, index, new_dictionary, 
                                         solver, minx, maxx, miny, maxy, 
