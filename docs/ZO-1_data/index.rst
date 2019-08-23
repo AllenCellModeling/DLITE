@@ -1,7 +1,7 @@
 ZO-1 Data
 ==============
 
-Now, let's test DLITE on ZO-1 time-series data collected at the Allen Institute.
+So far, we have validated DLITE on Synthetic data. Now let's try running DLITE on the ZO-1 dataset.
 
 .. toctree::
    :maxdepth: 2
