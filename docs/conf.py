@@ -37,8 +37,11 @@ extensions = [
     'sphinx.ext.autodoc',
     'sphinx.ext.viewcode',
     'sphinx.ext.napoleon',
+    'nbsphinx',
      "sphinx.ext.mathjax",
 ]
+
+exclude_patterns = ['_build', '**.ipynb_checkpoints']
 
 # Control napoleon
 napoleon_google_docstring = False
