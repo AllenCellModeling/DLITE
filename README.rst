@@ -26,7 +26,6 @@ Full documentation is available `here`_. For more details, refer to our `biorxiv
    
 .. image:: https://user-images.githubusercontent.com/40371793/61190376-3f3bf800-a650-11e9-9e8f-51235200aca4.jpg
    :width: 750px
-   :scale: 100 %
    :align: center
   
    

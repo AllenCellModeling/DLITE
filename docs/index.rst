@@ -8,9 +8,8 @@ DLITE
 
    installation
    usage
-   physics
-   Generate_Voronoi_Data
-   Demo_notebook_SurfaceEvolver
+   physics/index
+   synthetic_data/index
    Demo_notebook_ZO-1
    Compare_CellFIT_DLITE
    FOV_drift
