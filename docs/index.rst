@@ -9,11 +9,11 @@ DLITE
    installation
    usage
    physics
-   ../Notebooks/Generate_Voronoi_Data
-   ../Notebooks/Demo_notebook_SurfaceEvolver
-   ../Notebooks/Demo_notebook_ZO-1
-   ../Notebooks/Compare_CellFIT_DLITE
-   ../Notebooks/FOV_drift
+   Generate_Voronoi_Data
+   Demo_notebook_SurfaceEvolver
+   Demo_notebook_ZO-1
+   Compare_CellFIT_DLITE
+   FOV_drift
    modules
    authors
 
