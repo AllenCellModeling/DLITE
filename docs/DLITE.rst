@@ -12,6 +12,14 @@ DLITE.AICS\_data module
    :undoc-members:
    :show-inheritance:
 
+DLITE.Lloyd\_relaxation\_class module
+-------------------------------------
+
+.. automodule:: DLITE.Lloyd_relaxation_class
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 DLITE.ManualTracing module
 --------------------------
 
@@ -24,6 +32,22 @@ DLITE.ManualTracingMultiple module
 ----------------------------------
 
 .. automodule:: DLITE.ManualTracingMultiple
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+DLITE.PlottingFunctions module
+------------------------------
+
+.. automodule:: DLITE.PlottingFunctions
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+DLITE.SaveSurfEvolFile module
+-----------------------------
+
+.. automodule:: DLITE.SaveSurfEvolFile
    :members:
    :undoc-members:
    :show-inheritance:
@@ -44,29 +68,6 @@ DLITE.cell\_describe module
    :undoc-members:
    :show-inheritance:
 
-DLITE.SaveSurfEvolFile module
----------------------------
-
-.. automodule:: DLITE.SaveSurfEvolFile
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-DLITE.PlottingFunctions module
----------------------------
-
-.. automodule:: DLITE.PlottingFunctions
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-DLITE.Lloyd\_relaxation\_class module
----------------------------
-
-.. automodule:: DLITE.Lloyd_relaxation_class
-   :members:
-   :undoc-members:
-   :show-inheritance:
 
 Module contents
 ---------------
