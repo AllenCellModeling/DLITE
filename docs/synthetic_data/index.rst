@@ -12,3 +12,5 @@ The validation of ``DLITE`` on synthetic data requires the production of time se
    Generate_Voronoi_Colony_Mesh
    Colony_Mesh_To_SurfaceEvolverMesh
    SurfaceEvolver_Mesh_To_Force_Network
+   Compare_force_network_CellFIT_DLITE
+   Simulate_FOV_Drift

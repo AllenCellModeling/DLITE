@@ -10,9 +10,7 @@ DLITE
    usage
    physics/index
    synthetic_data/index
-   Demo_notebook_ZO-1
-   Compare_CellFIT_DLITE
-   FOV_drift
+   ZO-1_data/index
    modules
    authors
 
