@@ -71,7 +71,7 @@ setup(
     description="A dynamic force-inference model to estimate tensions in colony time-series",
     install_requires=requirements,
     license="Allen Institute Software License",
-    long_description=readme + '\n\n' + history,
+    long_description=readme,
     include_package_data=True,
     keywords='DLITE',
     name='DLITE',
