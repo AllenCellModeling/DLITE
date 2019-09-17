@@ -55,7 +55,7 @@ DLITE is installed. Optionally we can check that the installation was successful
 
 .. code-block:: bash
 
-    $ jupyter-notebook  Notebooks/Demo_notebook_ZO-1.ipynb
+    $ jupyter-notebook  Notebooks/Example.ipynb
 
 This is the preferred method to install DLITE in its alpha form as it allows updates via:
 
