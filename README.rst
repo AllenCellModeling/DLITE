@@ -32,17 +32,18 @@ DLITE is Dynamic Local Intercellular Tension Estimation of cell-cell forces in t
    
 .. Add a section on what DLITE needs as inputs, how the input files need to be formatted
 
+
 Installation 
 ------------
 
-* Like other complex projects, DLITE is best installed in a `Conda environment`_ or `virtual environment`_. We'll use a Conda environment here. First we'll create and activate it. 
+Like other complex projects, DLITE is best installed in a `Conda environment`_ or `virtual environment`_. We'll use a Conda environment here. First we'll create and activate it. 
 
 .. code-block:: bash
 
     $ conda create --name dlite python=3.7
     $ conda activate dlite
 
-* Now we have our named environment. Next clone the DLITE repository and install the local copy
+Now we have our named environment. Next clone the DLITE repository and install the local copy
 
 .. code-block:: bash
 
@@ -50,11 +51,17 @@ Installation
     $ cd DLITE
     $ pip install -e .[all]
 
-* DLITE is installed. Optionally we can check that the installation was sucessful by running a test suite by issuing the single command ``$ tox``. But likely of more interest is to look at the example notebooks via, e.g.:
+DLITE is installed. Optionally we can check that the installation was successful by running a test suite by issuing the single command ``$ tox``. But likely of more interest is to look at the example notebooks via, e.g.:
 
 .. code-block:: bash
 
     $ jupyter-notebook  Notebooks/Demo_notebook_ZO-1.ipynb
+
+This is the preferred method to install DLITE in its alpha form as it allows updates via:
+
+.. code-block:: console
+
+    $ git pull
 
 .. _Conda environment: https://docs.conda.io/projects/conda/en/latest/user-guide/getting-started.html
 .. _virtual environment: https://docs.python.org/3/tutorial/venv.html
@@ -108,7 +115,7 @@ Usage
 *  Experimental data .txt files that are formatted for the outputs of tracing using the NeuronJ plugin in ImageJ.
 
 Citation
-------
+--------
 
 If you find this code useful in your research, please consider citing the following paper::
 
@@ -126,7 +133,7 @@ Support
 We are not currently supporting this code, but simply releasing it to the community AS IS but are not able to provide any guarantees of support. The community is welcome to submit issues, but you should not expect an active response.
 
 Additional
--------
+----------
 
 * Licensed under the `Allen Institute Software License`_.
 * This package was created with Cookiecutter_.
