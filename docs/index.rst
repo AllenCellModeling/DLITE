@@ -1,17 +1,14 @@
-#####
-DLITE
-#####
-
 .. toctree::
+   :hidden:
    :maxdepth: 2
    :caption: Contents:
-
-   installation
+    
+   Overview and install <self>
    usage
    physics/index
    synthetic_data/index
    ZO-1_data/index
-   modules
+   Package modules <modules>
    authors
 
 .. include:: readme.rst
