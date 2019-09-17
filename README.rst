@@ -21,7 +21,7 @@ DLITE is Dynamic Local Intercellular Tension Estimation of cell-cell forces in t
 `Install via pip`_ as described or view `full documentation`_. For more details, refer to our `biorxiv`_ paper.
 
 .. _Install via pip: `Installation`_
-.. _full documentation: https://DLITE.readthedocs.io
+.. _full documentation: https://DLITE.readthedocs.io/en/latest/?badge=latest
 .. _CellFIT: http://www.civil.uwaterloo.ca/brodland/inferring-forces-in-cells.html 
 .. _biorxiv: https://www.biorxiv.org/content/10.1101/541144v2.full
    
