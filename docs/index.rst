@@ -5,6 +5,7 @@
     
    Overview and install <self>
    usage
+   example/index
    physics/index
    synthetic_data/index
    ZO-1_data/index
