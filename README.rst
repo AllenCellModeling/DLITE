@@ -18,9 +18,10 @@ DLITE
 
 DLITE is Dynamic Local Intercellular Tension Estimation of cell-cell forces in time-lapse images of a cell monolayer. In other words, DLITE is a method that takes in a digested skeletonization of curved edges at the tops of cell colonies and gives you a predicted tension along each of those edges. This differs from other tools such as `CellFIT`_ in that it is intended to be applied across time series; the predictions get better as you feed more and more frames into it. 
 
-Full documentation is available `here`_. For more details, refer to our `biorxiv`_ paper.
+`Install via pip`_ as described or view `full documentation`_. For more details, refer to our `biorxiv`_ paper.
 
-.. _here: https://DLITE.readthedocs.io
+.. _Install via pip: `Installation`_
+.. _full documentation: https://DLITE.readthedocs.io
 .. _CellFIT: http://www.civil.uwaterloo.ca/brodland/inferring-forces-in-cells.html 
 .. _biorxiv: https://www.biorxiv.org/content/10.1101/541144v2.full
    
@@ -29,79 +30,34 @@ Full documentation is available `here`_. For more details, refer to our `biorxiv
    :align: center
   
    
-.. Add a section on what DLITE can do, as bullet points (It can: - load such and such format -...)
 .. Add a section on what DLITE needs as inputs, how the input files need to be formatted
-Organization
---------
 
-The project has the following structure::
+Installation 
+------------
 
-    DLITE/
-      |- README.rst
-      |- setup.py
-      |- requirements.txt
-      |- tox.ini
-      |- Makefile
-      |- MANIFEST.in
-      |- HISTORY.rst
-      |- CHANGES.rst
-      |- AUTHORS.rst
-      |- LICENSE
-      |- docs/
-         |- ...
-      |- tests/
-         |- __init__.py
-         |- test_example.py
-         |- data/
-            |- ...
-      |- DLITE/
-         |- __init__.py
-         |- cell_describe.py
-         |- AICS_data.py
-         |- ManualTracing.py
-         |- ManualTracingMutliple.py
-         |- SurfaceEvolver.py
-         |- Lloyd_relaxation_class.py
-         |- SaveSurfEvolFile.py
-         |- PlottingFunctions.py
-      |- Notebooks/
-         |- Generate_Voronoi_Data.ipynb
-         |- Demo_notebook_SurfaceEvolver.ipynb
-         |- Demo_notebook_ZO-1.ipynb
-         |- Compare_CELLFIT_DLITE.ipynb
-         |- FOV_drift.ipynb
-         |- Data/
-            |- Synthetic_data
-               |- ...
-            |- ZO-1_data
-               |- ...
-
-Tests
---------
-
-* After forking the repo, create a conda environment and run tests to confirm that required dependencies are installed
+* Like other complex projects, DLITE is best installed in a `Conda environment`_ or `virtual environment`_. We'll use a Conda environment here. First we'll create and activate it. 
 
 .. code-block:: bash
 
-    $ conda create --name DLITE python=3.7
+    $ conda create --name dlite python=3.7
+    $ conda activate dlite
 
-* Activate conda environment :
-
-.. code-block:: bash
-
-    $ conda activate DLITE
-
-* Install requirments in setup.py
+* Now we have our named environment. Next clone the DLITE repository and install the local copy
 
 .. code-block:: bash
 
+    $ git clone https://github.com/AllenCellModeling/DLITE.git
+    $ cd DLITE
     $ pip install -e .[all]
 
-* Run tests
+* DLITE is installed. Optionally we can check that the installation was sucessful by running a test suite by issuing the single command ``$ tox``. But likely of more interest is to look at the example notebooks via, e.g.:
 
 .. code-block:: bash
 
-    $ tox
+    $ jupyter-notebook  Notebooks/Demo_notebook_ZO-1.ipynb
+
+.. _Conda environment: https://docs.conda.io/projects/conda/en/latest/user-guide/getting-started.html
+.. _virtual environment: https://docs.python.org/3/tutorial/venv.html
 
 Features
 --------
