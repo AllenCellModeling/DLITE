@@ -119,18 +119,18 @@ Citation
 
 If you find this code useful in your research, please consider citing the following paper::
 
-@article{VASAN20191714,
-title = "DLITE Uses Cell-Cell Interface Movement to Better Infer Cell-Cell Tensions",
-journal = "Biophysical Journal",
-volume = "117",
-number = "9",
-pages = "1714 - 1727",
-year = "2019",
-issn = "0006-3495",
-doi = "https://doi.org/10.1016/j.bpj.2019.09.034",
-url = "http://www.sciencedirect.com/science/article/pii/S0006349519308215",
-author = "Ritvik Vasan and Mary M. Maleckar and C. David Williams and Padmini Rangamani"
-}
+  @article{VASAN20191714,
+    title="DLITE Uses Cell-Cell Interface Movement to Better Infer Cell-Cell Tensions",
+    journal={Biophysical Journal},
+    volume = "117",
+    number = "9",
+    pages = "1714 - 1727",
+    year={2019},
+    issn = "0006-3495",
+    doi = "https://doi.org/10.1016/j.bpj.2019.09.034",
+    url = "http://www.sciencedirect.com/science/article/pii/S0006349519308215",
+    author = "Ritvik Vasan and Mary M. Maleckar and C. David Williams and Padmini Rangamani",
+  }
 
 Support
 -------
