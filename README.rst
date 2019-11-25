@@ -18,12 +18,12 @@ DLITE
 
 DLITE is Dynamic Local Intercellular Tension Estimation of cell-cell forces in time-lapse images of a cell monolayer. In other words, DLITE is a method that takes in a digested skeletonization of curved edges at the tops of cell colonies and gives you a predicted tension along each of those edges. This differs from other tools such as `CellFIT`_ in that it is intended to be applied across time series; the predictions get better as you feed more and more frames into it. 
 
-`Install via pip`_ as described or view `full documentation`_. For more details, refer to our `biorxiv`_ paper.
+`Install via pip`_ as described or view `full documentation`_. For more details, refer to our `paper`_.
 
 .. _Install via pip: `Installation`_
 .. _full documentation: https://DLITE.readthedocs.io/en/latest/?badge=latest
 .. _CellFIT: http://www.civil.uwaterloo.ca/brodland/inferring-forces-in-cells.html 
-.. _biorxiv: https://www.biorxiv.org/content/10.1101/541144v2.full
+.. _paper: https://www.sciencedirect.com/science/article/pii/S0006349519308215
    
 .. image:: https://user-images.githubusercontent.com/40371793/61190376-3f3bf800-a650-11e9-9e8f-51235200aca4.jpg
    :width: 750px
@@ -119,13 +119,17 @@ Citation
 
 If you find this code useful in your research, please consider citing the following paper::
 
-  @article{vasan2019dlite,
-    title={DLITE uses cell-cell interface movement to better infer cell-cell tensions},
-    author={Vasan, Ritvik and Maleckar, Mary M and Williams, Charles David and Rangamani, Padmini},
-    journal={bioRxiv},
-    pages={541144},
+  @article{VASAN20191714,
+    title="DLITE Uses Cell-Cell Interface Movement to Better Infer Cell-Cell Tensions",
+    journal={Biophysical Journal},
+    volume = "117",
+    number = "9",
+    pages = "1714 - 1727",
     year={2019},
-    publisher={Cold Spring Harbor Laboratory}
+    issn = "0006-3495",
+    doi = "https://doi.org/10.1016/j.bpj.2019.09.034",
+    url = "http://www.sciencedirect.com/science/article/pii/S0006349519308215",
+    author = "Ritvik Vasan and Mary M. Maleckar and C. David Williams and Padmini Rangamani",
   }
 
 Support
