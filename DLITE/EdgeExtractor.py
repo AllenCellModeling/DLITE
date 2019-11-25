@@ -368,3 +368,10 @@ def within_bounds(img, x, y, n=0):
 
 def get_neighbors(x, y):
     return [(c, r) for c in range(x - 1, x + 2) for r in range(y - 1, y + 2) if r != y or c != x]
+
+from PIL import Image
+
+a = EdgeExtractor()
+img = a.run("../Notebooks/Data/ZO-1_data/Time-series_2/20170123_I01_003.czi - 20170123_I01_0030004.tif")[0]
+img = Image.fromarray(img)
+img.save("test_please.png")
