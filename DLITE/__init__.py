@@ -8,7 +8,4 @@ __version__ = '0.1.0'
 def get_module_version():
     return __version__
 
-import matplotlib as mpl
-mpl.use('TkAgg')
-
-from . import cell_describe, ManualTracing, ManualTracingMultiple, SurfaceEvolver, AICS_data, PlottingFunctions, SaveSurfEvolFile, Lloyd_relaxation_class, EdgeExtractor 
+from . import cell_describe, ManualTracing, ManualTracingMultiple, SurfaceEvolver, AICS_data, PlottingFunctions, SaveSurfEvolFile, Lloyd_relaxation_class, EdgeExtractor, dlite_plg
