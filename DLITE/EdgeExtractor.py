@@ -164,22 +164,23 @@ class EdgeExtractor:
             while edge_starts:
 
                 start_point = heapq.heappop(edge_starts)
+                start_point = (start_point[1], start_point[2])
 
                 # This starting point turned out to be a part of prior edge computation (T junction?)
-                if (start_point[1], start_point[2]) in reserved_points:
+                if start_point in reserved_points:
                     continue
 
                 # Save the points we compute over the edge
                 edge_points = {j}
-                path = [start_point]
+                path = [j, start_point]
 
                 # Loop will end in one of three cases
                 # 1. edge traversal leads to a junction, we save all the edge points
                 # 2. edge traversal ends without finding a junction, we remove all the edge points
                 # 3. edge traversal extends past image boundary; boundary treatment dictates what to do with edge points
-                while edge_points:
-                    _, edge_x, edge_y = path[-1]
-                    edge_points.add((edge_x, edge_y))
+                while path:
+                    edge_x, edge_y = path[-1]
+                    edge_points = set(path)
 
                     # We've reached another junction! The points in this edge have been fully computed
                     if (edge_x, edge_y) in potential_junctions:
@@ -215,7 +216,7 @@ class EdgeExtractor:
 
                         if len(path) >= n:
 
-                            _, x, y = path[-n]
+                            x, y = path[-n]
 
                             # We compute all points within a triangle based off the angle between
                             # a past point in the path and the current point.
@@ -247,18 +248,20 @@ class EdgeExtractor:
                                 heapq.heappush(candidate_points, (d + critical, x, y))
 
                     if not has_immediate_neighbor and not candidate_points:
-                        edge_points = None
+                        path = None
                     # Traverse to the best (closest) candidate point.
                     elif candidate_points:
-                        path.append(heapq.heappop(candidate_points))
+                        _, x, y = heapq.heappop(candidate_points)
+                        path.append((x,y))
                     else:
                         break
 
-                if edge_points:
-                    edges.append(sorted(list(edge_points)))
+                # TODO: have nodes be first and last element in list
+                if path:
+                    edges.append(path)
 
                     # Junctions can be part of multiple edges, don't add them to the reserved point set
-                    reserved_points = reserved_points.union(edge_points).difference(potential_junctions)
+                    reserved_points = reserved_points.union(path).difference(potential_junctions)
 
         # Compute which junctions are valid
         true_junctions = []
